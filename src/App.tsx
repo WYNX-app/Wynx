@@ -160,12 +160,12 @@ function Shell() {
 
   return (
     <div className="flex min-h-screen">
-      <aside className="flex w-64 flex-col bg-gradient-to-b from-brand-pink via-brand-violet to-brand-blue text-text-primary">
+      <aside className="flex w-72 flex-col bg-gradient-to-b from-brand-pink via-brand-violet to-brand-blue text-text-primary">
         <div className="flex items-center gap-3 p-5">
-          <Logo className="h-10 w-10" />
+          <Logo className="h-12 w-12" />
           <div>
             <p className="font-display text-2xl font-bold">WYNX</p>
-            <p className="text-sm text-white/70">{company?.name}</p>
+            <p className="text-sm text-text-secondary">{company?.name}</p>
           </div>
         </div>
         <nav className="flex-1 space-y-1 px-3">
@@ -173,12 +173,14 @@ function Shell() {
             <button
               key={item.id}
               onClick={() => setPage(item.id)}
-              className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm ${
-                page === item.id ? 'bg-white/15 text-accent-1' : 'text-white/80 hover:bg-white/10'
+              className={`flex w-full items-center justify-between rounded-xl px-3 py-3 text-left text-base ${
+                page === item.id
+                  ? 'bg-white/60 text-text-primary font-semibold'
+                  : 'text-text-primary/80 hover:bg-white/30'
               }`}
             >
               <span>
-                <span className="mr-2">{item.icon}</span>
+                <span className="mr-2 text-lg">{item.icon}</span>
                 {item.label}
               </span>
               {item.id === 'alertas' && unread > 0 && (
@@ -187,7 +189,10 @@ function Shell() {
             </button>
           ))}
         </nav>
-        <button className="m-3 rounded-xl bg-white/10 px-3 py-2 text-sm" onClick={logout}>
+        <button
+          className="m-3 rounded-xl bg-white/50 px-3 py-3 text-base font-medium text-text-primary hover:bg-white/70"
+          onClick={logout}
+        >
           Sair
         </button>
       </aside>
@@ -195,8 +200,8 @@ function Shell() {
         <header className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="font-display text-2xl font-bold capitalize">{NAV.find((n) => n.id === page)?.label}</h2>
-            <p className="text-sm text-navy/60">
-              Olá, {user?.name} · {user?.role} · Plano {company ? PLANS[company.plan].name : ''}
+            <p className="text-sm text-text-muted">
+              Olá, {user?.name} · <span className="capitalize">{user?.role}</span> · Plano {company ? PLANS[company.plan].name : ''}
             </p>
           </div>
           <input
