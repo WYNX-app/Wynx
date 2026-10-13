@@ -1,0 +1,8 @@
+-- Migration inicial do WYNX.
+-- Adicione aqui as tabelas: companies, profiles, members,
+-- categories, products, movements, alerts, audit_logs.
+--
+-- REGRAS:
+-- - toda tabela de negócio tem company_id
+-- - RLS habilitado em todas as tabelas expostas
+-- - service_role NUNCA no cliente

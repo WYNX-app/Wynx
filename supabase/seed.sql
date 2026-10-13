@@ -1,0 +1,2 @@
+-- Dados fictícios para desenvolvimento local.
+-- Nunca use em produção.

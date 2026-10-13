@@ -1,0 +1,170 @@
+@import "tailwindcss";
+
+@theme {
+  /* Fundo */
+  --color-bg-base: #FCEEF5;
+  --color-bg-soft: #F9D9EC;
+  --color-bg-lilac: #F0E6FB;
+  --color-bg-surface: #FFFFFF;
+
+  /* Marca (gradiente) */
+  --color-brand-pink: #F9A8D4;
+  --color-brand-violet: #C4B5FD;
+  --color-brand-blue: #93C5FD;
+  --color-brand-cyan: #67E8F9;
+
+  /* CTA */
+  --color-accent: #F5B942;
+  --color-accent-hover: #E0A22E;
+  --color-accent-soft: #FDE9B8;
+
+  /* Texto */
+  --color-text-primary: #0A0A0A;
+  --color-text-secondary: #1F2937;
+  --color-text-muted: #6B7280;
+
+  /* Bordas */
+  --color-border-subtle: #F3E8FF;
+  --color-border-strong: #E9D5FF;
+
+  /* Semânticas */
+  --color-success: #16A34A;
+  --color-warning: #F59E0B;
+  --color-danger: #DC2626;
+  --color-info: #06B6D4;
+
+  /* Ink (uso pontual em tabelas densas / relatórios) */
+  --color-ink: #1A3A6B;
+
+  /* Sombras */
+  --shadow-card: 0 8px 24px rgba(196, 181, 253, 0.18), 0 2px 6px rgba(15, 23, 42, 0.04);
+  --shadow-modal: 0 24px 60px rgba(76, 29, 149, 0.14);
+  --shadow-cta: 0 8px 20px rgba(245, 185, 66, 0.35);
+  --shadow-soft: 0 4px 12px rgba(196, 181, 253, 0.12);
+
+  /* Radius */
+  --radius-input: 12px;
+  --radius-card: 16px;
+  --radius-modal: 20px;
+  --radius-pill: 999px;
+
+  /* Tipografia */
+  --font-sans: Inter, "Segoe UI", Arial, sans-serif;
+
+  /* Gradientes reutilizáveis */
+  --gradient-brand: linear-gradient(135deg, #F9A8D4 0%, #C4B5FD 35%, #93C5FD 70%, #67E8F9 100%);
+  --gradient-bg: radial-gradient(1200px 600px at -10% -10%, #F9D9EC 0%, transparent 55%),
+                 radial-gradient(900px 500px at 110% 0%, #F0E6FB 0%, transparent 50%),
+                 #FCEEF5;
+}
+
+@theme {
+  /* Compatibilidade com o App.tsx existente */
+  --color-navy:       #1A3A6B;
+  --color-ice:        #F7FBFF;
+  --color-mist:       #E9EEF6;
+  --color-accent-1:   #F5B942;   /* igual ao --color-accent */
+  --color-cyan-brand: #06B6D4;
+  --color-blue-brand: #1D6FBE;
+  --font-display:     Inter, "Segoe UI", Arial, sans-serif;
+}
+/* ---------- Base ---------- */
+:root { color-scheme: light; }
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body, #root {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  font-family: var(--font-sans);
+  color: var(--color-text-primary);
+  background: var(--gradient-bg);
+  background-attachment: fixed;
+  -webkit-font-smoothing: antialiased;
+}
+
+button, input, select, textarea { font-family: inherit; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb {
+  background: var(--color-brand-violet);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--color-brand-pink); }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* ---------- Utilitários ---------- */
+
+@utility text-brand-gradient {
+  background: var(--gradient-brand);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@utility bg-brand-gradient {
+  background: var(--gradient-brand);
+}
+
+@utility card {
+  background: var(--color-bg-surface);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  border: 1px solid var(--color-border-subtle);
+}
+
+@utility card-soft {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(10px);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-soft);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+}
+
+@utility field {
+  width: 100%;
+  border-radius: var(--radius-input);
+  border: 1px solid var(--color-border-subtle);
+  background: var(--color-bg-surface);
+  padding: 0.625rem 0.875rem;
+  outline: none;
+  color: var(--color-text-primary);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+
+  &::placeholder { color: var(--color-text-muted); }
+
+  &:focus {
+    border-color: var(--color-brand-violet);
+    box-shadow: 0 0 0 4px rgba(196, 181, 253, 0.35);
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 font-semibold
+           bg-accent text-text-primary shadow-cta transition
+           hover:bg-accent-hover active:scale-[0.98]
+           focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-violet/40
+           disabled:opacity-50 disabled:pointer-events-none;
+  }
+
+  .btn-accent {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 font-semibold
+           bg-brand-gradient text-white shadow-card transition
+           hover:brightness-105 active:scale-[0.98]
+           focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-violet/40
+           disabled:opacity-50 disabled:pointer-events-none;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 font-semibold
+           bg-bg-surface text-text-secondary border border-border-subtle transition
+           hover:bg-bg-soft/60 active:scale-[0.98]
+           focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-violet/40
+           disabled:opacity-50 disabled:pointer-events-none;
+  }
+}
