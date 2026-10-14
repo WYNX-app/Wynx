@@ -78,7 +78,7 @@ function Splash() {
    AUTH
    ============================================================ */
 function Auth() {
-  const { login, register, recover, error, setError, resetDemo } = useStore()
+  const { login, register, error, setError } = useStore()
   const [mode, setMode] = useState<'login' | 'cadastro' | 'recuperar'>('login')
   const [form, setForm] = useState({
     name: '',
@@ -90,14 +90,11 @@ function Auth() {
     stateUf: 'PI'
   })
 
-  const submit = async (e: FormEvent) => {
-    e.preventDefault()
-    if (mode === 'login') await login(form.email, form.password)
-    else if (mode === 'recuperar') {
-      const ok = await recover(form.email, form.password)
-      if (ok) setMode('login')
-    } else await register({ ...form })
-  }
+const submit = async (e: FormEvent) => {
+  e.preventDefault()
+  if (mode === 'login') await login(form.email, form.password)
+  else await register({ ...form })
+}
 
   return (
     <div className="grid min-h-screen place-items-center p-6">
@@ -133,14 +130,12 @@ function Auth() {
               ))}
             </ul>
 
-            <div className="mt-auto rounded-2xl border border-white/20 bg-white/10 p-4 text-sm backdrop-blur wynx-fade-up wynx-delay-4">
-              <p className="font-semibold">Conta de demonstração</p>
-              <p className="text-white/80">E-mail: mariana@wynx.app</p>
-              <p className="text-white/80">Senha: demo1234</p>
-              <button className="btn-accent mt-3" onClick={() => resetDemo()}>
-                Restaurar dados da Boutique Aurora
-              </button>
-            </div>
+<div className="mt-auto rounded-2xl border border-white/20 bg-white/10 p-4 text-sm backdrop-blur wynx-fade-up wynx-delay-4">
+  <p className="font-semibold">Pronto para começar?</p>
+  <p className="mt-1 text-white/80">
+    Crie sua conta gratuitamente e controle seu estoque em menos de 1 minuto.
+  </p>
+</div>
           </div>
         </div>
 
@@ -163,25 +158,25 @@ function Auth() {
             </p>
           </div>
 
-          <div className="flex gap-2 text-sm">
-            {(['login', 'cadastro', 'recuperar'] as const).map((m) => (
-              <button
-                type="button"
-                key={m}
-                className={`rounded-full px-3 py-1.5 font-medium transition ${
-                  mode === m
-                    ? 'bg-brand-gradient text-white shadow-soft'
-                    : 'bg-bg-soft text-text-secondary hover:bg-brand-violet/20'
-                }`}
-                onClick={() => {
-                  setMode(m)
-                  setError(null)
-                }}
-              >
-                {m === 'login' ? 'Entrar' : m === 'cadastro' ? 'Criar conta' : 'Recuperar'}
-              </button>
-            ))}
-          </div>
+<div className="flex gap-2 text-sm">
+  {(['login', 'cadastro'] as const).map((m) => (
+    <button
+      type="button"
+      key={m}
+      className={`rounded-full px-3 py-1.5 font-medium transition ${
+        mode === m
+          ? 'bg-brand-gradient text-white shadow-soft'
+          : 'bg-bg-soft text-text-secondary hover:bg-brand-violet/20'
+      }`}
+      onClick={() => {
+        setMode(m)
+        setError(null)
+      }}
+    >
+      {m === 'login' ? 'Entrar' : 'Criar conta'}
+    </button>
+  ))}
+</div>
 
           {mode === 'cadastro' && (
             <>
@@ -936,7 +931,7 @@ function History({ q }: { q: string }) {
    ============================================================ */
 function Team({ q }: { q: string }) {
   const { team, user } = useSession()
-  const { invite, setRole, error } = useStore()
+  const { setRole, error } = useStore()
   const [form, setForm] = useState({ name: '', email: '', role: 'editor' as Role, password: '' })
 
   const filtered = q
@@ -949,10 +944,9 @@ function Team({ q }: { q: string }) {
     <div className="grid gap-4 lg:grid-cols-3">
       <form
         className="card space-y-3 p-5"
-        onSubmit={async (e) => {
-          e.preventDefault()
-          if (await invite(form)) setForm({ name: '', email: '', role: 'editor', password: '' })
-        }}
+onSubmit={(e) => {
+  e.preventDefault()
+}}
       >
         <h3 className="font-semibold">Adicionar colaborador</h3>
         <input className="field" placeholder="Nome" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
@@ -969,8 +963,23 @@ function Team({ q }: { q: string }) {
           required
         />
         {error && <p className="text-sm text-red-600">{error}</p>}
-        <button className="btn-primary w-full">Convidar</button>
-        <p className="text-xs text-navy/50">Administrador gerencia tudo. Editor cadastra e movimenta. Visualizador só consulta.</p>
+<button
+  type="button"
+  disabled
+  className="btn-primary w-full cursor-not-allowed opacity-50"
+  title="Disponível na próxima versão"
+>
+  Convidar
+</button>
+<div className="rounded-xl border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
+  <p className="font-medium">Convite por e-mail</p>
+  <p className="mt-0.5 text-warning/90">
+    Em desenvolvimento. Nesta versão, novos usuários criam a própria conta na tela de cadastro.
+  </p>
+</div>
+<p className="text-xs text-navy/50">
+  Administrador gerencia tudo. Editor cadastra e movimenta. Visualizador só consulta.
+</p>
       </form>
       <div className="card p-5 lg:col-span-2">
         {filtered.length === 0 && q && (
@@ -1025,7 +1034,7 @@ function Profile() {
    ============================================================ */
 function Settings() {
   const { company, categories } = useSession()
-  const { setCompany, newCategory, importBackup, resetDemo } = useStore()
+  const { setCompany, newCategory } = useStore()
   const [form, setForm] = useState({
     name: company?.name || '',
     segment: company?.segment || SEGMENTS[0],
@@ -1075,14 +1084,13 @@ function Settings() {
             Adicionar
           </button>
         </div>
-        <div className="flex gap-2 pt-4">
-          <button className="btn-ghost" onClick={importBackup}>
-            Importar backup
-          </button>
-          <button className="btn-ghost" onClick={resetDemo}>
-            Restaurar demonstração
-          </button>
-        </div>
+<div className="mt-4 rounded-xl border border-border-subtle bg-bg-soft/40 px-3 py-3 text-xs text-text-muted">
+  <p className="font-medium text-text-secondary">Backup dos dados</p>
+  <p className="mt-1">
+    Seus dados ficam salvos no Supabase (nuvem), com backup automático. Para exportar um
+    snapshot, use <strong className="text-text-secondary">Relatórios → Backup JSON</strong>.
+  </p>
+</div>
       </div>
     </div>
   )
