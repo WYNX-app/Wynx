@@ -2,6 +2,9 @@ const { app, BrowserWindow, ipcMain, dialog } = require('electron')
 const path = require('path')
 const fs = require('fs')
 
+// Desliga aceleração de GPU — evita crashes de Dawn Graphite no Windows
+
+
 const isDev = !app.isPackaged
 
 function storePath() {

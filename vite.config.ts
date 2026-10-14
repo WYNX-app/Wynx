@@ -8,7 +8,7 @@ export default defineConfig({
   resolve: {
     alias: { "@": path.resolve(__dirname, "src") },
   },
-  optimizeDeps: {
-    exclude: ["@supabase/supabase-js"],
+  build: {
+    chunkSizeWarningLimit: 2000,
   },
 });

@@ -1,4 +1,5 @@
-import { FormEvent, useEffect, useState } from 'react'
+import { PasswordField } from './components/PasswordField'
+import { FormEvent, useEffect, useRef, useState } from 'react'
 import {
   Bar,
   BarChart,
@@ -25,6 +26,8 @@ import {
 import { useSession, useStore } from './store'
 import { MovementType, PLANS, PageId, PlanId, Product, Role, SEGMENTS } from './types'
 import { Logo, Modal, NAV, Stat } from './ui'
+import Aurora from './components/Aurora'
+import ThemeToggle from './components/ThemeToggle'
 
 const COLORS = ['#1D6FBE', '#06B6D4', '#FFB84D', '#CDA8FF', '#FFABD0', '#1A3A6B']
 
@@ -42,18 +45,38 @@ export default function App() {
   return <Shell />
 }
 
+/* ============================================================
+   SPLASH
+   ============================================================ */
 function Splash() {
   return (
-    <div className="grid min-h-screen place-items-center">
-      <div className="text-center">
-        <Logo className="mx-auto h-24 w-24" />
-        <h1 className="mt-4 font-display text-4xl font-extrabold text-navy">WYNX</h1>
-        <p className="mt-2 text-navy/70">Transformando o controle de estoque em inteligência para o seu negócio.</p>
+    <div className="relative grid min-h-screen place-items-center overflow-hidden bg-gradient-to-br from-[#1A0B2E] via-[#2A1145] to-[#1A0B2E]">
+      <Aurora variant="splash" />
+
+      <div className="relative z-10 text-center">
+        <Logo className="mx-auto h-44 w-44 wynx-logo-pulse" />
+
+        <h1 className="mt-8 font-display text-7xl font-extrabold tracking-tight wynx-fade-up wynx-delay-1">
+          <span className="wynx-title-gradient">WYNX</span>
+        </h1>
+
+        <p className="mx-auto mt-6 max-w-lg text-lg text-white/85 wynx-fade-up wynx-delay-2">
+          Transformando o controle de estoque em inteligência para o seu negócio.
+        </p>
+
+        <div className="mx-auto mt-12 flex justify-center gap-2 wynx-fade-in wynx-delay-3">
+          <span className="h-2 w-2 rounded-full bg-brand-pink wynx-logo-pulse" />
+          <span className="h-2 w-2 rounded-full bg-brand-violet wynx-logo-pulse" style={{ animationDelay: '0.2s' }} />
+          <span className="h-2 w-2 rounded-full bg-brand-cyan wynx-logo-pulse" style={{ animationDelay: '0.4s' }} />
+        </div>
       </div>
     </div>
   )
 }
 
+/* ============================================================
+   AUTH
+   ============================================================ */
 function Auth() {
   const { login, register, recover, error, setError, resetDemo } = useStore()
   const [mode, setMode] = useState<'login' | 'cadastro' | 'recuperar'>('login')
@@ -79,44 +102,87 @@ function Auth() {
   return (
     <div className="grid min-h-screen place-items-center p-6">
       <div className="card grid w-full max-w-5xl overflow-hidden md:grid-cols-2">
-        <div className="bg-gradient-to-br from-pink-100 via-white to-purple-100 p-8">
-          <Logo />
-          <h1 className="mt-6 font-display text-3xl font-extrabold">Gestão inteligente de estoque</h1>
-          <p className="mt-3 text-navy/70">
-            Saiba o que tem, o que está acabando, o que está parado e o que fazer a seguir — pensado para Mariana e para
-            o pequeno negócio brasileiro.
-          </p>
-          <ul className="mt-6 space-y-2 text-sm">
-            <li>• Cadastro de produtos, entradas e saídas</li>
-            <li>• Alertas de estoque mínimo</li>
-            <li>• Relatórios e insights com base em dados reais</li>
-            <li>• Equipe, permissões e planos SaaS</li>
-          </ul>
-          <div className="mt-8 rounded-2xl bg-white/70 p-4 text-sm">
-            <p className="font-semibold">Conta de demonstração</p>
-            <p>E-mail: mariana@wynx.app</p>
-            <p>Senha: demo1234</p>
-            <button className="btn-accent mt-3" onClick={() => resetDemo()}>
-              Restaurar dados da Boutique Aurora
-            </button>
+        {/* Painel esquerdo */}
+        <div className="relative min-h-[640px] overflow-hidden bg-gradient-to-br from-[#2A1145] via-[#1A0B2E] to-[#3A1F5C]">
+          <Aurora variant="login" />
+
+          <div className="relative z-10 flex h-full flex-col p-8 text-white">
+            <Logo className="h-20 w-20 wynx-logo-pulse" />
+
+            <h1 className="mt-8 font-display text-4xl font-extrabold leading-tight wynx-fade-up wynx-delay-1">
+              Gestão inteligente
+              <br />
+              de estoque
+            </h1>
+
+            <p className="mt-4 max-w-md text-sm text-white/85 wynx-fade-up wynx-delay-2">
+              Saiba o que tem, o que está acabando, o que está parado e o que fazer a seguir.
+            </p>
+
+            <ul className="mt-8 space-y-2.5 text-sm text-white/85 wynx-fade-up wynx-delay-3">
+              {[
+                'Cadastro de produtos, entradas e saídas',
+                'Alertas de estoque mínimo',
+                'Relatórios e insights com dados reais',
+                'Equipe, permissões e planos SaaS'
+              ].map((item) => (
+                <li key={item} className="flex items-center gap-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+                  {item}
+                </li>
+              ))}
+            </ul>
+
+            <div className="mt-auto rounded-2xl border border-white/20 bg-white/10 p-4 text-sm backdrop-blur wynx-fade-up wynx-delay-4">
+              <p className="font-semibold">Conta de demonstração</p>
+              <p className="text-white/80">E-mail: mariana@wynx.app</p>
+              <p className="text-white/80">Senha: demo1234</p>
+              <button className="btn-accent mt-3" onClick={() => resetDemo()}>
+                Restaurar dados da Boutique Aurora
+              </button>
+            </div>
           </div>
         </div>
-        <form className="space-y-3 p-8" onSubmit={submit}>
+
+        {/* Painel direito — formulário */}
+        <form className="relative flex flex-col justify-center space-y-3 p-8" onSubmit={submit}>
+          <div className="absolute right-4 top-4">
+            <ThemeToggle />
+          </div>
+
+          <div className="mb-2">
+            <h2 className="font-display text-2xl font-bold text-text-primary">
+              {mode === 'login' && 'Bem-vindo de volta'}
+              {mode === 'cadastro' && 'Crie sua conta'}
+              {mode === 'recuperar' && 'Recuperar senha'}
+            </h2>
+            <p className="mt-1 text-sm text-text-muted">
+              {mode === 'login' && 'Acesse o painel da sua empresa'}
+              {mode === 'cadastro' && 'Comece grátis em menos de 1 minuto'}
+              {mode === 'recuperar' && 'Vamos enviar um link de redefinição'}
+            </p>
+          </div>
+
           <div className="flex gap-2 text-sm">
             {(['login', 'cadastro', 'recuperar'] as const).map((m) => (
               <button
                 type="button"
                 key={m}
-                className={`rounded-full px-3 py-1 ${mode === m ? 'bg-navy text-white' : 'bg-ice'}`}
+                className={`rounded-full px-3 py-1.5 font-medium transition ${
+                  mode === m
+                    ? 'bg-brand-gradient text-white shadow-soft'
+                    : 'bg-bg-soft text-text-secondary hover:bg-brand-violet/20'
+                }`}
                 onClick={() => {
                   setMode(m)
                   setError(null)
                 }}
               >
-                {m === 'login' ? 'Entrar' : m === 'cadastro' ? 'Criar conta' : 'Recuperar senha'}
+                {m === 'login' ? 'Entrar' : m === 'cadastro' ? 'Criar conta' : 'Recuperar'}
               </button>
             ))}
           </div>
+
           {mode === 'cadastro' && (
             <>
               <input className="field" placeholder="Seu nome" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
@@ -132,31 +198,67 @@ function Auth() {
               </div>
             </>
           )}
+
           <input className="field" type="email" placeholder="E-mail" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required />
-          <input
-            className="field"
-            type="password"
+
+          <PasswordField
             placeholder={mode === 'recuperar' ? 'Nova senha' : 'Senha'}
             value={form.password}
             onChange={(e) => setForm({ ...form, password: e.target.value })}
             required
           />
-          {error && <p className="text-sm text-red-600">{error}</p>}
+
+          {error && (
+            <div className="rounded-xl border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+              {error}
+            </div>
+          )}
+
           <button className="btn-primary w-full" type="submit">
             {mode === 'login' ? 'Acessar a WYNX' : mode === 'cadastro' ? 'Criar minha empresa' : 'Redefinir senha'}
           </button>
+
+          <p className="pt-2 text-center text-xs text-text-muted">
+            Ao continuar você concorda com os Termos e a Política de Privacidade.
+          </p>
         </form>
       </div>
     </div>
   )
 }
 
+/* ============================================================
+   SHELL (layout logado)
+   ============================================================ */
 function Shell() {
   const { user, company, notifications } = useSession()
   const { logout } = useStore()
   const [page, setPage] = useState<PageId>('dashboard')
   const [q, setQ] = useState('')
+  const searchRef = useRef<HTMLInputElement>(null)
   const unread = notifications.filter((n) => !n.read).length
+
+  // Atalho: tecla "/" foca a busca (igual GitHub/Linear)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (
+        e.key === '/' &&
+        document.activeElement?.tagName !== 'INPUT' &&
+        document.activeElement?.tagName !== 'TEXTAREA'
+      ) {
+        e.preventDefault()
+        searchRef.current?.focus()
+      }
+      if (e.key === 'Escape' && document.activeElement === searchRef.current) {
+        setQ('')
+        searchRef.current?.blur()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  const searchActive = q.trim().length > 0
 
   return (
     <div className="flex min-h-screen">
@@ -172,8 +274,11 @@ function Shell() {
           {NAV.map((item) => (
             <button
               key={item.id}
-              onClick={() => setPage(item.id)}
-              className={`flex w-full items-center justify-between rounded-xl px-3 py-3 text-left text-base ${
+              onClick={() => {
+                setPage(item.id)
+                setQ('')
+              }}
+              className={`flex w-full items-center justify-between rounded-xl px-3 py-3 text-left text-base transition ${
                 page === item.id
                   ? 'bg-white/60 text-text-primary font-semibold'
                   : 'text-text-primary/80 hover:bg-white/30'
@@ -190,7 +295,7 @@ function Shell() {
           ))}
         </nav>
         <button
-          className="m-3 rounded-xl bg-white/50 px-3 py-3 text-base font-medium text-text-primary hover:bg-white/70"
+          className="m-3 rounded-xl bg-white/50 px-3 py-3 text-base font-medium text-text-primary transition hover:bg-white/70"
           onClick={logout}
         >
           Sair
@@ -204,21 +309,57 @@ function Shell() {
               Olá, {user?.name} · <span className="capitalize">{user?.role}</span> · Plano {company ? PLANS[company.plan].name : ''}
             </p>
           </div>
-          <input
-            className="field max-w-sm"
-            placeholder="Busca global: produto, código, categoria..."
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-          />
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <input
+                ref={searchRef}
+                className="field max-w-sm pr-16"
+                placeholder="Busca global: produto, código, categoria..."
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+              />
+              {q ? (
+                <button
+                  type="button"
+                  onClick={() => setQ('')}
+                  aria-label="Limpar busca"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md px-2 py-1 text-xs text-text-muted transition hover:bg-bg-soft hover:text-text-primary"
+                >
+                  Limpar
+                </button>
+              ) : (
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded border border-border-subtle px-1.5 py-0.5 text-xs text-text-muted">
+                  /
+                </span>
+              )}
+            </div>
+            <ThemeToggle />
+          </div>
         </header>
+
+        {searchActive && (
+          <div className="mb-4 flex items-center gap-2 rounded-xl border border-brand-violet/30 bg-brand-violet/10 px-3 py-2 text-sm text-text-secondary animate-[wynx-fade-in_0.3s_ease-out]">
+            <span>
+              Buscando por <strong className="text-text-primary">"{q}"</strong>
+            </span>
+            <button
+              type="button"
+              onClick={() => setQ('')}
+              className="ml-auto text-xs font-medium text-brand-violet hover:underline"
+            >
+              limpar
+            </button>
+          </div>
+        )}
+
         {page === 'dashboard' && <Dashboard q={q} go={setPage} />}
         {page === 'produtos' && <Products q={q} />}
         {page === 'estoque' && <Stock q={q} />}
-        {page === 'relatorios' && <Reports />}
-        {page === 'insights' && <Insights />}
-        {page === 'alertas' && <Alerts />}
-        {page === 'historico' && <History />}
-        {page === 'equipe' && <Team />}
+        {page === 'relatorios' && <Reports q={q} />}
+        {page === 'insights' && <Insights q={q} />}
+        {page === 'alertas' && <Alerts q={q} />}
+        {page === 'historico' && <History q={q} />}
+        {page === 'equipe' && <Team q={q} />}
         {page === 'perfil' && <Profile />}
         {page === 'configuracoes' && <Settings />}
         {page === 'assinatura' && <Billing />}
@@ -227,7 +368,9 @@ function Shell() {
     </div>
   )
 }
-
+/* ============================================================
+   DASHBOARD
+   ============================================================ */
 function Dashboard({ q, go }: { q: string; go: (p: PageId) => void }) {
   const { state } = useStore()
   const { kpis: k, products, movements, insights, notifications } = useSession()
@@ -318,12 +461,21 @@ function Dashboard({ q, go }: { q: string; go: (p: PageId) => void }) {
   )
 }
 
-function matches(p: Product, q: string) {
-  const s = q.trim().toLowerCase()
-  if (!s) return true
-  return [p.name, p.sku, p.category, p.color, p.size, p.barcode].join(' ').toLowerCase().includes(s)
+function normalize(s: string) {
+  return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 }
 
+function matches(p: Product, q: string) {
+  const s = normalize(q.trim())
+  if (!s) return true
+  return normalize(
+    [p.name, p.sku, p.category, p.color, p.size, p.barcode].join(' ')
+  ).includes(s)
+}
+
+/* ============================================================
+   PRODUTOS
+   ============================================================ */
 function Products({ q }: { q: string }) {
   const { saveProduct, removeProduct, error, state } = useStore()
   const { products, categories, user } = useSession()
@@ -412,7 +564,7 @@ function ProductForm({
   product: Product | null
   categories: string[]
   onClose: () => void
-  onSave: (data: Parameters<typeof useStore> extends never ? never : any) => void
+  onSave: (data: any) => void
 }) {
   const [form, setForm] = useState({
     name: product?.name || '',
@@ -461,6 +613,9 @@ function ProductForm({
   )
 }
 
+/* ============================================================
+   ESTOQUE
+   ============================================================ */
 function Stock({ q }: { q: string }) {
   const { move, error } = useStore()
   const { products } = useSession()
@@ -528,7 +683,10 @@ function Stock({ q }: { q: string }) {
   )
 }
 
-function Reports() {
+/* ============================================================
+   RELATÓRIOS
+   ============================================================ */
+function Reports({ q }: { q: string }) {
   const { state, exportBackup } = useStore()
   const { movements, kpis: k } = useSession()
   const [from, setFrom] = useState('')
@@ -538,6 +696,7 @@ function Reports() {
     const d = m.createdAt.slice(0, 10)
     if (from && d < from) return false
     if (to && d > to) return false
+    if (q && !normalize(m.productName).includes(normalize(q))) return false
     return true
   })
 
@@ -581,15 +740,54 @@ function Reports() {
           </ResponsiveContainer>
         </div>
       </div>
+
+      {filtered.length > 0 && (
+        <div className="card overflow-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-mist text-left">
+              <tr>
+                <th className="p-3">Quando</th>
+                <th>Produto</th>
+                <th>Tipo</th>
+                <th>Qtd</th>
+                <th>Usuário</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.slice(0, 50).map((m) => (
+                <tr key={m.id} className="border-t border-mist">
+                  <td className="p-3">{formatDate(m.createdAt)}</td>
+                  <td>{m.productName}</td>
+                  <td>{labelMovement(m.type)}</td>
+                  <td>{m.qty}</td>
+                  <td>{m.userName}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   )
 }
 
-function Insights() {
+/* ============================================================
+   INSIGHTS
+   ============================================================ */
+function Insights({ q }: { q: string }) {
   const { insights } = useSession()
+  const filtered = q
+    ? insights.filter(
+        (i) => normalize(i.title).includes(normalize(q)) || normalize(i.body).includes(normalize(q))
+      )
+    : insights
+
   return (
     <div className="grid gap-4 md:grid-cols-2">
-      {insights.map((i) => (
+      {filtered.length === 0 && q && (
+        <p className="col-span-full text-sm text-text-muted">Nenhum insight para "{q}".</p>
+      )}
+      {filtered.map((i) => (
         <article key={i.id} className="card p-5">
           <p className="text-xs uppercase tracking-wide text-cyan-brand">Severidade {i.severity}</p>
           <h3 className="mt-1 font-display text-lg font-bold">{i.title}</h3>
@@ -600,16 +798,25 @@ function Insights() {
   )
 }
 
-function Alerts() {
+/* ============================================================
+   ALERTAS
+   ============================================================ */
+function Alerts({ q }: { q: string }) {
   const { notifications } = useSession()
   const { readOne, readAll } = useStore()
+  const filtered = q
+    ? notifications.filter(
+        (n) => normalize(n.title).includes(normalize(q)) || normalize(n.message).includes(normalize(q))
+      )
+    : notifications
+
   return (
     <div>
       <button className="btn-ghost mb-4" onClick={readAll}>
         Marcar todos como lidos
       </button>
       <div className="space-y-3">
-        {notifications.map((n) => (
+        {filtered.map((n) => (
           <div key={n.id} className={`card p-4 ${n.read ? 'opacity-70' : ''}`}>
             <div className="flex items-start justify-between gap-3">
               <div>
@@ -625,15 +832,39 @@ function Alerts() {
             </div>
           </div>
         ))}
-        {notifications.length === 0 && <p>Nenhum alerta no momento.</p>}
+        {filtered.length === 0 && (
+          <p>{q ? `Nenhum alerta para "${q}".` : 'Nenhum alerta no momento.'}</p>
+        )}
       </div>
     </div>
   )
 }
 
-function History() {
+/* ============================================================
+   HISTÓRICO
+   ============================================================ */
+function History({ q }: { q: string }) {
   const { movements, audit } = useSession()
   const [tab, setTab] = useState<'mov' | 'aud'>('mov')
+
+  const filteredMovements = q
+    ? movements.filter(
+        (m) =>
+          normalize(m.productName).includes(normalize(q)) ||
+          normalize(m.userName).includes(normalize(q)) ||
+          normalize(m.note).includes(normalize(q))
+      )
+    : movements
+
+  const filteredAudit = q
+    ? audit.filter(
+        (a) =>
+          normalize(a.userName).includes(normalize(q)) ||
+          normalize(a.action).includes(normalize(q)) ||
+          normalize(a.details).includes(normalize(q))
+      )
+    : audit
+
   return (
     <div>
       <div className="mb-4 flex gap-2">
@@ -668,7 +899,7 @@ function History() {
           </thead>
           <tbody>
             {tab === 'mov'
-              ? movements.map((m) => (
+              ? filteredMovements.map((m) => (
                   <tr key={m.id} className="border-t border-mist">
                     <td className="p-3">{formatDate(m.createdAt)}</td>
                     <td>{m.productName}</td>
@@ -679,7 +910,7 @@ function History() {
                     <td>{m.note}</td>
                   </tr>
                 ))
-              : audit.map((a) => (
+              : filteredAudit.map((a) => (
                   <tr key={a.id} className="border-t border-mist">
                     <td className="p-3">{formatDate(a.createdAt)}</td>
                     <td>{a.userName}</td>
@@ -687,17 +918,33 @@ function History() {
                     <td>{a.details}</td>
                   </tr>
                 ))}
+            {(tab === 'mov' ? filteredMovements : filteredAudit).length === 0 && (
+              <tr>
+                <td colSpan={7} className="p-6 text-center text-sm text-text-muted">
+                  {q ? `Nada encontrado para "${q}".` : 'Nenhum registro.'}
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
     </div>
   )
 }
-
-function Team() {
+/* ============================================================
+   EQUIPE
+   ============================================================ */
+function Team({ q }: { q: string }) {
   const { team, user } = useSession()
   const { invite, setRole, error } = useStore()
   const [form, setForm] = useState({ name: '', email: '', role: 'editor' as Role, password: '' })
+
+  const filtered = q
+    ? team.filter(
+        (m) => normalize(m.name).includes(normalize(q)) || normalize(m.email).includes(normalize(q))
+      )
+    : team
+
   return (
     <div className="grid gap-4 lg:grid-cols-3">
       <form
@@ -715,13 +962,21 @@ function Team() {
           <option value="editor">Editor</option>
           <option value="visualizador">Visualizador</option>
         </select>
-        <input className="field" placeholder="Senha inicial" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required />
+        <PasswordField
+          placeholder="Senha inicial"
+          value={form.password}
+          onChange={(e) => setForm({ ...form, password: e.target.value })}
+          required
+        />
         {error && <p className="text-sm text-red-600">{error}</p>}
         <button className="btn-primary w-full">Convidar</button>
         <p className="text-xs text-navy/50">Administrador gerencia tudo. Editor cadastra e movimenta. Visualizador só consulta.</p>
       </form>
       <div className="card p-5 lg:col-span-2">
-        {team.map((m) => (
+        {filtered.length === 0 && q && (
+          <p className="text-sm text-text-muted">Nenhum colaborador encontrado para "{q}".</p>
+        )}
+        {filtered.map((m) => (
           <div key={m.id} className="flex items-center justify-between border-b border-mist py-3">
             <div>
               <p className="font-medium">{m.name}</p>
@@ -744,6 +999,9 @@ function Team() {
   )
 }
 
+/* ============================================================
+   PERFIL
+   ============================================================ */
 function Profile() {
   const { user, company } = useSession()
   const { setProfile } = useStore()
@@ -762,6 +1020,9 @@ function Profile() {
   )
 }
 
+/* ============================================================
+   CONFIGURAÇÕES
+   ============================================================ */
 function Settings() {
   const { company, categories } = useSession()
   const { setCompany, newCategory, importBackup, resetDemo } = useStore()
@@ -827,6 +1088,9 @@ function Settings() {
   )
 }
 
+/* ============================================================
+   ASSINATURA
+   ============================================================ */
 function Billing() {
   const { company, products, team } = useSession()
   const { setPlan } = useStore()
@@ -859,6 +1123,9 @@ function Billing() {
   )
 }
 
+/* ============================================================
+   SUPORTE
+   ============================================================ */
 function Support() {
   return (
     <div className="card max-w-2xl space-y-3 p-6">

@@ -1,13 +1,19 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ============================================================
+   TOKENS — LIGHT
+   ============================================================ */
 @theme {
   /* Fundo */
   --color-bg-base: #FCEEF5;
   --color-bg-soft: #F9D9EC;
   --color-bg-lilac: #F0E6FB;
   --color-bg-surface: #FFFFFF;
+  --color-bg-elevated: #FFFFFF;
 
-  /* Marca (gradiente) */
+  /* Marca */
   --color-brand-pink: #F9A8D4;
   --color-brand-violet: #C4B5FD;
   --color-brand-blue: #93C5FD;
@@ -16,7 +22,6 @@
   /* CTA */
   --color-accent: #F5B942;
   --color-accent-hover: #E0A22E;
-  --color-accent-soft: #FDE9B8;
 
   /* Texto */
   --color-text-primary: #0A0A0A;
@@ -31,10 +36,14 @@
   --color-success: #16A34A;
   --color-warning: #F59E0B;
   --color-danger: #DC2626;
-  --color-info: #06B6D4;
 
-  /* Ink (uso pontual em tabelas densas / relatórios) */
-  --color-ink: #1A3A6B;
+  /* Compat (App.tsx usa) */
+  --color-navy: #1A3A6B;
+  --color-ice: #F7FBFF;
+  --color-mist: #E9EEF6;
+  --color-accent-1: #F5B942;
+  --color-cyan-brand: #06B6D4;
+  --color-blue-brand: #1D6FBE;
 
   /* Sombras */
   --shadow-card: 0 8px 24px rgba(196, 181, 253, 0.18), 0 2px 6px rgba(15, 23, 42, 0.04);
@@ -50,26 +59,43 @@
 
   /* Tipografia */
   --font-sans: Inter, "Segoe UI", Arial, sans-serif;
+  --font-display: Inter, "Segoe UI", Arial, sans-serif;
 
-  /* Gradientes reutilizáveis */
+  /* Gradiente da marca */
   --gradient-brand: linear-gradient(135deg, #F9A8D4 0%, #C4B5FD 35%, #93C5FD 70%, #67E8F9 100%);
-  --gradient-bg: radial-gradient(1200px 600px at -10% -10%, #F9D9EC 0%, transparent 55%),
-                 radial-gradient(900px 500px at 110% 0%, #F0E6FB 0%, transparent 50%),
-                 #FCEEF5;
 }
 
-@theme {
-  /* Compatibilidade com o App.tsx existente */
-  --color-navy:       #1A3A6B;
-  --color-ice:        #F7FBFF;
-  --color-mist:       #E9EEF6;
-  --color-accent-1:   #F5B942;   /* igual ao --color-accent */
-  --color-cyan-brand: #06B6D4;
-  --color-blue-brand: #1D6FBE;
-  --font-display:     Inter, "Segoe UI", Arial, sans-serif;
+/* ============================================================
+   TOKENS — DARK
+   ============================================================ */
+html.dark {
+  --color-bg-base: #0A0A1F;
+  --color-bg-soft: #14122E;
+  --color-bg-lilac: #1A1838;
+  --color-bg-surface: #16142E;
+  --color-bg-elevated: #1E1B3D;
+
+  --color-text-primary: #F5F5FF;
+  --color-text-secondary: #C2C0DC;
+  --color-text-muted: #8583A8;
+
+  --color-border-subtle: #2A2650;
+  --color-border-strong: #3D3970;
+
+  --color-navy: #C4B5FD;
+  --color-ice: #1A1838;
+  --color-mist: #2A2650;
+
+  --shadow-card: 0 8px 24px rgba(0, 0, 0, 0.4), 0 2px 6px rgba(0, 0, 0, 0.2);
+  --shadow-modal: 0 24px 60px rgba(0, 0, 0, 0.6);
+  --shadow-soft: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
-/* ---------- Base ---------- */
+
+/* ============================================================
+   BASE
+   ============================================================ */
 :root { color-scheme: light; }
+html.dark { color-scheme: dark; }
 
 *, *::before, *::after { box-sizing: border-box; }
 
@@ -81,9 +107,25 @@ html, body, #root {
 body {
   font-family: var(--font-sans);
   color: var(--color-text-primary);
-  background: var(--gradient-bg);
-  background-attachment: fixed;
+  background: var(--color-bg-base);
   -webkit-font-smoothing: antialiased;
+  transition: background-color 0.4s ease, color 0.4s ease;
+}
+
+html:not(.dark) body {
+  background:
+    radial-gradient(1200px 600px at -10% -10%, #F9D9EC 0%, transparent 55%),
+    radial-gradient(900px 500px at 110% 0%, #F0E6FB 0%, transparent 50%),
+    var(--color-bg-base);
+  background-attachment: fixed;
+}
+
+html.dark body {
+  background:
+    radial-gradient(1200px 600px at -10% -10%, rgba(196, 181, 253, 0.12) 0%, transparent 55%),
+    radial-gradient(900px 500px at 110% 0%, rgba(249, 168, 212, 0.10) 0%, transparent 50%),
+    var(--color-bg-base);
+  background-attachment: fixed;
 }
 
 button, input, select, textarea { font-family: inherit; }
@@ -97,8 +139,87 @@ button, input, select, textarea { font-family: inherit; }
 ::-webkit-scrollbar-thumb:hover { background: var(--color-brand-pink); }
 ::-webkit-scrollbar-track { background: transparent; }
 
-/* ---------- Utilitários ---------- */
+/* ============================================================
+   ANIMAÇÕES
+   ============================================================ */
+@keyframes wynx-pulse {
+  0%, 100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 24px rgba(196, 181, 253, 0.55))
+            drop-shadow(0 0 48px rgba(249, 168, 212, 0.3));
+  }
+  50% {
+    transform: scale(1.06);
+    filter: drop-shadow(0 0 44px rgba(249, 168, 212, 0.8))
+            drop-shadow(0 0 72px rgba(196, 181, 253, 0.5));
+  }
+}
 
+@keyframes wynx-float-1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33%       { transform: translate(60px, -40px) scale(1.15); }
+  66%       { transform: translate(-40px, 40px) scale(0.9); }
+}
+
+@keyframes wynx-float-2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50%       { transform: translate(-80px, 60px) scale(1.2); }
+}
+
+@keyframes wynx-float-3 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  40%       { transform: translate(-50px, -70px) scale(1.1); }
+  80%       { transform: translate(70px, 50px) scale(0.95); }
+}
+
+@keyframes wynx-fade-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes wynx-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes wynx-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes wynx-gradient-shift {
+  0%, 100% { background-position: 0% 50%; }
+  50%       { background-position: 100% 50%; }
+}
+
+@keyframes wynx-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.wynx-logo-pulse   { animation: wynx-pulse 3.4s ease-in-out infinite; will-change: transform, filter; }
+.wynx-fade-up      { animation: wynx-fade-up 0.9s cubic-bezier(0.23, 1, 0.32, 1) both; }
+.wynx-fade-in      { animation: wynx-fade-in 0.9s cubic-bezier(0.23, 1, 0.32, 1) both; }
+.wynx-delay-1      { animation-delay: 0.15s; }
+.wynx-delay-2      { animation-delay: 0.30s; }
+.wynx-delay-3      { animation-delay: 0.45s; }
+.wynx-delay-4      { animation-delay: 0.60s; }
+
+.wynx-spin         { animation: wynx-spin 1s linear infinite; }
+
+/* Título com gradiente animado */
+.wynx-title-gradient {
+  background: linear-gradient(90deg, #F9A8D4, #C4B5FD, #93C5FD, #67E8F9, #C4B5FD, #F9A8D4);
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: wynx-gradient-shift 8s ease-in-out infinite;
+}
+
+/* ============================================================
+   UTILITÁRIOS
+   ============================================================ */
 @utility text-brand-gradient {
   background: var(--gradient-brand);
   -webkit-background-clip: text;
@@ -106,23 +227,22 @@ button, input, select, textarea { font-family: inherit; }
   color: transparent;
 }
 
-@utility bg-brand-gradient {
-  background: var(--gradient-brand);
-}
+@utility bg-brand-gradient { background: var(--gradient-brand); }
 
 @utility card {
   background: var(--color-bg-surface);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-card);
   border: 1px solid var(--color-border-subtle);
+  transition: background-color 0.4s ease, border-color 0.4s ease;
 }
 
 @utility card-soft {
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(10px);
+  background: color-mix(in srgb, var(--color-bg-surface) 75%, transparent);
+  backdrop-filter: blur(12px);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-soft);
-  border: 1px solid rgba(255, 255, 255, 0.9);
+  border: 1px solid var(--color-border-subtle);
 }
 
 @utility field {
@@ -133,7 +253,7 @@ button, input, select, textarea { font-family: inherit; }
   padding: 0.625rem 0.875rem;
   outline: none;
   color: var(--color-text-primary);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.4s ease;
 
   &::placeholder { color: var(--color-text-muted); }
 
@@ -143,6 +263,9 @@ button, input, select, textarea { font-family: inherit; }
   }
 }
 
+/* ============================================================
+   BOTÕES
+   ============================================================ */
 @layer components {
   .btn-primary {
     @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 font-semibold
@@ -156,15 +279,108 @@ button, input, select, textarea { font-family: inherit; }
     @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 font-semibold
            bg-brand-gradient text-white shadow-card transition
            hover:brightness-105 active:scale-[0.98]
-           focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-violet/40
-           disabled:opacity-50 disabled:pointer-events-none;
+           focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-violet/40;
   }
 
   .btn-ghost {
     @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 font-semibold
            bg-bg-surface text-text-secondary border border-border-subtle transition
            hover:bg-bg-soft/60 active:scale-[0.98]
-           focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-violet/40
-           disabled:opacity-50 disabled:pointer-events-none;
+           focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-violet/40;
   }
+
+  .dark .btn-ghost {
+    @apply hover:bg-bg-lilac;
+  }
+}
+
+/* ============================================================
+   EFEITOS NOS INPUTS
+   ============================================================ */
+
+/* Glow no foco com gradiente animado da marca */
+.field {
+  position: relative;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease, background-color 0.3s ease;
+}
+
+.field:focus {
+  border-color: transparent;
+  background:
+    linear-gradient(var(--color-bg-surface), var(--color-bg-surface)) padding-box,
+    linear-gradient(90deg, #F9A8D4, #C4B5FD, #93C5FD, #67E8F9) border-box;
+  border: 2px solid transparent;
+  box-shadow:
+    0 0 0 4px rgba(196, 181, 253, 0.25),
+    0 0 20px rgba(249, 168, 212, 0.35),
+    0 0 40px rgba(147, 197, 253, 0.15);
+  animation: wynx-focus-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes wynx-focus-pulse {
+  0%, 100% {
+    box-shadow:
+      0 0 0 4px rgba(196, 181, 253, 0.25),
+      0 0 20px rgba(249, 168, 212, 0.35),
+      0 0 40px rgba(147, 197, 253, 0.15);
+  }
+  50% {
+    box-shadow:
+      0 0 0 5px rgba(196, 181, 253, 0.35),
+      0 0 28px rgba(249, 168, 212, 0.5),
+      0 0 52px rgba(147, 197, 253, 0.25);
+  }
+}
+
+/* Borda gradiente animada quando está focado */
+.field:focus::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: calc(var(--radius-input) + 2px);
+  padding: 2px;
+  background: linear-gradient(90deg, #F9A8D4, #C4B5FD, #93C5FD, #67E8F9, #C4B5FD, #F9A8D4);
+  background-size: 300% 100%;
+  animation: wynx-gradient-shift 4s ease-in-out infinite;
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* Caractere digitado com brilho suave enquanto digita */
+.field:focus::placeholder {
+  color: transparent;
+  transition: color 0.3s ease;
+}
+
+/* Typewriter text do placeholder (opcional — só quando vazio e em foco) */
+.field:not(:focus)::placeholder {
+  transition: opacity 0.3s ease;
+}
+
+/* Shimmer no texto digitado da senha — efeito sutil */
+input[type='password']:focus,
+input[type='text'].field:focus {
+  letter-spacing: 0.02em;
+}
+
+/* Efeito de brilho que percorre o campo (só quando digitando) */
+@keyframes wynx-shimmer-sweep {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* Dark mode — glow mais suave */
+html.dark .field:focus {
+  background:
+    linear-gradient(var(--color-bg-elevated), var(--color-bg-elevated)) padding-box,
+    linear-gradient(90deg, #C4B5FD, #93C5FD, #67E8F9, #F9A8D4) border-box;
+  box-shadow:
+    0 0 0 4px rgba(196, 181, 253, 0.3),
+    0 0 24px rgba(196, 181, 253, 0.4),
+    0 0 48px rgba(147, 197, 253, 0.2);
 }
