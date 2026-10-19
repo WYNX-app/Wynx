@@ -26,7 +26,7 @@ type Store = {
   move: (input: { productId: string; type: MovementType; qty: number; note: string }) => boolean
   invite: (input: { name: string; email: string; role: Role; password: string }) => Promise<boolean>
   setRole: (userId: string, role: Role) => boolean
-  removeMember: (memberId: string) => boolean // <-- ADICIONADO AQUI
+  removeMember: (memberId: string) => boolean
   setProfile: (name: string) => boolean
   setCompany: (patch: { name?: string; segment?: string; city?: string; state?: string }) => boolean
   newCategory: (name: string) => boolean
@@ -37,6 +37,9 @@ type Store = {
   importBackup: () => Promise<void>
   resetDemo: () => Promise<void>
   deleteAccount: () => Promise<boolean>
+  // Fornecedores
+  saveSupplier: (input: any) => boolean
+  removeSupplier: (id: string) => boolean
 }
 
 const Ctx = createContext<Store | null>(null)
@@ -145,6 +148,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           cost: Number(input.cost) || 0,
           minQty: Number(input.minQty) || 0,
           notes: input.notes,
+          supplierId: input.supplierId || null, // <-- ADICIONADO AQUI
         }
         const r = input.id
           ? await db.updateProduct(input.id, payload)
@@ -219,19 +223,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       return true
     },
 
-    // --- NOVA FUNÇÃO AQUI ---
     removeMember: (memberId) => {
       const user = currentUser(state)
       if (!user) return false
       ;(async () => {
-        // @ts-ignore (Caso o TypeScript reclame que removeMemberDb não existe ainda no db)
         const r = await db.removeMemberDb(memberId)
         if (r.error) { setError(r.error); return }
         await reload(user.id)
       })()
       return true
     },
-    // ------------------------
 
     setProfile: (name) => {
       const user = currentUser(state)
@@ -336,6 +337,32 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         return false
       }
     },
+
+    // --- FORNECEDORES ---
+    saveSupplier: (input) => {
+      const user = currentUser(state)
+      const company = currentCompany(state)
+      if (!user || !company) return false
+      ;(async () => {
+        const r = input.id 
+          ? await db.updateSupplier(input.id, input)
+          : await db.createSupplier({ ...input, companyId: company.id })
+        if (r.error) { setError(r.error); return }
+        await reload(user.id)
+      })()
+      return true
+    },
+
+    removeSupplier: (id) => {
+      const user = currentUser(state)
+      if (!user) return false
+      ;(async () => {
+        const r = await db.removeSupplier(id)
+        if (r.error) { setError(r.error); return }
+        await reload(user.id)
+      })()
+      return true
+    },
   }), [state, ready, error])
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
@@ -361,6 +388,7 @@ export function useSession() {
     audit: company ? state.audit.filter((a) => a.companyId === company.id) : [],
     team: company ? state.users.filter((u) => u.companyId === company.id) : [],
     categories: company ? state.categories[company.id] || [] : [],
+    suppliers: company ? (state.suppliers || []).filter((s) => s.companyId === company.id) : [], // <-- ADICIONADO AQUI
     insights: company ? generateInsights(state) : [],
     kpis: company ? kpis(state) : { products: 0, units: 0, low: 0, value: 0, sales: 0, revenue: 0, idle: 0, movements: 0 }
   }

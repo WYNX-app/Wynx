@@ -1,3 +1,14 @@
+// Adicione a interface Supplier no topo:
+export interface Supplier {
+  id: string
+  companyId: string
+  name: string
+  cnpj?: string
+  phone?: string
+  email?: string
+  createdAt: string
+}
+
 export type Role = 'administrador' | 'editor' | 'visualizador'
 export type PlanId = 'gratuito' | 'essencial' | 'profissional' | 'empresarial'
 export type MovementType = 'entrada' | 'venda' | 'consumo' | 'saida' | 'ajuste'
@@ -5,6 +16,7 @@ export type PageId =
   | 'dashboard'
   | 'produtos'
   | 'estoque'
+  | 'fornecedores'
   | 'relatorios'
   | 'insights'
   | 'alertas'
@@ -55,6 +67,7 @@ export interface Product {
   notes?: string
   createdAt: string
   updatedAt: string
+  supplierId?: string
 }
 
 export interface Movement {
@@ -110,7 +123,8 @@ export interface AppState {
   notifications: AppNotification[]
   audit: AuditEvent[]
   categories: Record<string, string[]>
-  sessionUserId: string | null
+  sessionUserId: string | null,
+  suppliers: Supplier[]
 }
 
 export const PLANS: Record<PlanId, { name: string; price: number; products: number; users: number; ai: string; extras: string }> = {

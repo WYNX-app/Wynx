@@ -1,3 +1,8 @@
+import { Truck } from 'lucide-react'
+import ExcelJS from 'exceljs'
+import { saveAs } from 'file-saver'
+import Papa from 'papaparse'
+import { Upload, Download } from 'lucide-react'
 import { PasswordField } from './components/PasswordField'
 import { Scanner } from './components/Scanner'
 import { FormEvent, useEffect, useState } from 'react'
@@ -28,6 +33,7 @@ const DOCK_ITEMS = [
   { id: 'dashboard', label: 'Painel', icon: LayoutDashboard },
   { id: 'produtos', label: 'Produtos', icon: Package },
   { id: 'estoque', label: 'Estoque', icon: Layers },
+  { id: 'fornecedores', label: 'Fornecedores', icon: Truck },
   { id: 'relatorios', label: 'Relatórios', icon: FileText },
   { id: 'historico', label: 'Histórico', icon: HistoryIcon },
   { id: 'equipe', label: 'Equipe', icon: Users },
@@ -45,6 +51,7 @@ export default function App() {
 
   if (!ready || splash) return <Splash />
   if (!state.sessionUserId) return <Auth />
+  
   return <Shell />
 }
 
@@ -188,7 +195,28 @@ function Shell() {
   const [q, setQ] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  
+  // Controle do Tour
+  const [showTour, setShowTour] = useState(false)
+  const [tourStep, setTourStep] = useState(0)
+  
   const unread = notifications.filter((n) => !n.read).length
+
+  useEffect(() => {
+    // Inicia o tour se não tiver sido concluído
+    if (!localStorage.getItem('wynx_onboarding_done')) {
+      setTimeout(() => setShowTour(true), 1000)
+    }
+  }, [])
+
+  useEffect(() => {
+    // O TourGuide avisa em qual passo está, e nós mudamos a tela
+    if (showTour) {
+      if (tourStep === 3) setPage('produtos')
+      else if (tourStep === 4) setPage('estoque')
+      else setPage('dashboard')
+    }
+  }, [tourStep, showTour])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -216,7 +244,7 @@ function Shell() {
   return (
     <div className="relative min-h-screen bg-bg-base dark:bg-[#0A0514] text-text-primary dark:text-white selection:bg-brand-pink/30 overflow-hidden transition-colors duration-500">
       
-      {/* Fundo imersivo (Aumentei a opacidade para o vidro ter o que desfocar) */}
+      {/* Fundo imersivo */}
       <div className="fixed inset-0 z-0 pointer-events-none opacity-40 dark:opacity-40 transition-opacity">
         <Aurora variant="login" />
         <div className="absolute inset-0 bg-gradient-to-t from-bg-base dark:from-[#0A0514] via-transparent to-transparent" />
@@ -232,7 +260,8 @@ function Shell() {
         >
           <Logo className="h-6 w-6 sm:h-8 sm:w-8 shrink-0 drop-shadow-md" />
           <div className="min-w-0">
-<p className="font-display text-sm sm:text-base font-bold leading-none">{user?.name || 'Carregando...'}</p>            <p className="text-[10px] sm:text-xs text-text-muted dark:text-white/70 truncate max-w-[80px] sm:max-w-[150px]">
+            <p className="font-display text-sm sm:text-base font-bold leading-none">{user?.name || 'Carregando...'}</p>
+            <p className="text-[10px] sm:text-xs text-text-muted dark:text-white/70 truncate max-w-[80px] sm:max-w-[150px]">
               {isSuperAdminNoCompany ? 'Master Control' : company?.name}
             </p>
           </div>
@@ -286,6 +315,7 @@ function Shell() {
               <>
                 {page === 'dashboard' && <Dashboard q={q} go={setPage} />}
                 {page === 'produtos' && <Products q={q} />}
+                {page === 'fornecedores' && <Suppliers q={q} />}
                 {page === 'estoque' && <Stock q={q} />}
                 {page === 'relatorios' && <Reports q={q} />}
                 {page === 'historico' && <History q={q} />}
@@ -305,6 +335,7 @@ function Shell() {
       {/* Dock de Navegação (Vidro Ultra Realista) */}
       <div className="fixed bottom-4 sm:bottom-6 inset-x-0 z-[999] flex justify-center pointer-events-none px-4">
         <motion.nav 
+          id="tour-dock"
           initial={{ y: 50, opacity: 0 }} 
           animate={{ y: 0, opacity: 1 }} 
           className={`pointer-events-auto flex w-full max-w-lg sm:w-max items-center justify-between sm:justify-start gap-1 sm:gap-2 rounded-[28px] p-2 ${glassClasses}`}
@@ -338,6 +369,14 @@ function Shell() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* COMPONENTE DO TOUR */}
+      {showTour && (
+        <TourGuide 
+          onClose={() => setShowTour(false)} 
+          onStepChange={setTourStep} 
+        />
+      )}
     </div>
   )
 }
@@ -360,7 +399,7 @@ function Dashboard({ q, go }: { q: string; go: (p: PageId) => void }) {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <motion.div variants={item} className="md:col-span-2 relative overflow-hidden rounded-3xl border border-border-subtle dark:border-white/10 bg-bg-surface/50 dark:bg-white/5 p-5 sm:p-6 backdrop-blur-md transition-colors">
+        <motion.div id="tour-kpi" variants={item} className="md:col-span-2 relative overflow-hidden rounded-3xl border border-border-subtle dark:border-white/10 bg-bg-surface/50 dark:bg-white/5 p-5 sm:p-6 backdrop-blur-md transition-colors">
           <div className="absolute top-0 right-0 p-6 opacity-5 dark:opacity-10"><Package className="h-32 w-32" /></div>
           <h3 className="text-sm font-medium text-text-muted dark:text-white/50">Capital em Estoque</h3>
           <p className="mt-2 text-4xl sm:text-5xl font-black">{formatMoney(k.value)}</p>
@@ -428,16 +467,230 @@ function matches(p: Product, q: string) {
    ============================================================ */
 function Products({ q }: { q: string }) {
   const { saveProduct, removeProduct, error } = useStore()
-  const { products, categories, user } = useSession()
+  const { products, categories, user, company, team, kpis } = useSession() 
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Product | null>(null)
   const list = products.filter((p) => matches(p, q))
+
+  // --- 1. IMPORTAR CSV OU EXCEL ---
+  const importFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (!user || !company) return alert('Sessão inválida.')
+
+    const fileExtension = file.name.split('.').pop()?.toLowerCase()
+
+    try {
+      let rows: any[] = []
+
+      if (fileExtension === 'csv') {
+        // ---- LEITURA DE CSV ----
+        Papa.parse(file, {
+          header: true,
+          skipEmptyLines: true,
+          complete: async (results) => {
+            rows = results.data as any[]
+            await processImport(rows)
+          }
+        })
+      } else if (fileExtension === 'xlsx' || fileExtension === 'xls') {
+        // ---- LEITURA DE EXCEL ----
+        const arrayBuffer = await file.arrayBuffer()
+        const workbook = new ExcelJS.Workbook()
+        await workbook.xlsx.load(arrayBuffer)
+        const worksheet = workbook.worksheets[0]
+
+        let headers: string[] = []
+        let headerRowIndex = 0
+
+        // Encontra a linha que tem os cabeçalhos reais (pulando a capa bonita)
+        worksheet.eachRow((row, rowNumber) => {
+          const firstCell = String(row.getCell(1).value || '')
+          if (firstCell.includes('Produto') || firstCell.toLowerCase() === 'nome') {
+            headerRowIndex = rowNumber
+            row.eachCell((cell, colNumber) => {
+              headers[colNumber] = String(cell.value || '')
+            })
+            return false // Para o loop
+          }
+        })
+
+        if (headerRowIndex === 0) {
+          return alert('Cabeçalho não encontrado. Certifique-se de que a planilha tem uma coluna "Produto" ou "Nome".')
+        }
+
+        // Lê os dados a partir da linha seguinte ao cabeçalho
+        worksheet.eachRow((row, rowNumber) => {
+          if (rowNumber > headerRowIndex) {
+            const rowData: any = {}
+            let isEmpty = true
+            
+            row.eachCell((cell, colNumber) => {
+              const header = headers[colNumber]
+              if (header && cell.value !== null && cell.value !== undefined) {
+                rowData[header] = cell.value
+                isEmpty = false
+              }
+            })
+
+            if (!isEmpty) rows.push(rowData)
+          }
+        })
+
+        await processImport(rows)
+      } else {
+        alert('Formato inválido. Envie um arquivo .csv, .xlsx ou .xls.')
+      }
+    } catch (err: any) {
+      alert('Erro ao ler o arquivo: ' + err.message)
+    }
+
+    // Função interna que envia pro banco (usada por CSV e Excel)
+    async function processImport(data: any[]) {
+      const formatted = data.map(r => ({
+        name: r.Nome || r.name || r.Produto || r.produto,
+        sku: r.SKU || r.sku,
+        category: r.Categoria || r.category,
+        price: parseFloat(String(r['Preço'] || r.price || 0).replace(',', '.')),
+        cost: parseFloat(String(r.Custo || r.cost || 0).replace(',', '.')),
+        qty: parseInt(String(r.Estoque || r.qty || 0), 10),
+        minQty: parseInt(String(r['Mínimo'] || r.minQty || 0), 10),
+        barcode: String(r['Código_Barras'] || r.barcode || '')
+      })).filter(p => p.name) 
+
+      if (formatted.length === 0) return alert('Nenhum produto válido encontrado.')
+      if (!company) return alert('Empresa não encontrada.')
+      if (!user) return alert('Usuário não encontrado.')
+
+      const r = await db.bulkCreateProducts(company.id, user.id, user.name, formatted)
+      if (r.error) {
+        alert('Erro ao importar para o banco: ' + r.error)
+      } else {
+        alert(`${formatted.length} produtos importados com sucesso!`)
+        window.location.reload()
+      }
+    }
+  }
+
+  // --- 2. EXPORTAR EXCEL BONITO (ROSA/LILÁS) ---
+  const exportBeautifulExcel = async () => {
+    const workbook = new ExcelJS.Workbook()
+    const worksheet = workbook.addWorksheet('Catálogo WYNX', {
+      views: [{ state: 'frozen', ySplit: 10 }] 
+    })
+
+    const colorPink = 'FFF9A8D4'      
+    const colorViolet = 'FFC4B5FD'    
+    const colorSoftPink = 'FFFCEFF5'  
+    const colorText = 'FF0A0A0A'      
+
+    // 1. CABEÇALHO
+    worksheet.mergeCells('A1:G2')
+    const titleCell = worksheet.getCell('A1')
+    titleCell.value = 'WYNX — Relatório de Catálogo'
+    titleCell.font = { name: 'Arial', size: 18, bold: true, color: { argb: colorText } }
+    titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: colorPink } }
+    titleCell.alignment = { vertical: 'middle', horizontal: 'center' }
+
+    // 2. DADOS DA EMPRESA
+    worksheet.addRow([])
+    worksheet.addRow(['Empresa:', company?.name || 'N/A', '', 'Emitido por:', user?.name || 'N/A'])
+    worksheet.addRow(['Data:', new Date().toLocaleString('pt-BR'), '', 'Plano:', company?.plan?.toUpperCase() || 'N/A'])
+    worksheet.addRow(['Equipe:', team.length > 0 ? team.map(t => t.name).join(', ') : 'Nenhum membro'])
+    
+    worksheet.getRow(4).font = { bold: true, color: { argb: colorText } }
+    worksheet.getRow(5).font = { bold: true, color: { argb: colorText } }
+    worksheet.getRow(6).font = { bold: true, color: { argb: colorText } }
+
+    // 3. RESUMO FINANCEIRO
+    worksheet.addRow([])
+    const kpiRow = worksheet.addRow(['SALDO TOTAL:', formatMoney(kpis.value), '', 'TOTAL ITENS:', kpis.units, '', 'PRODUTOS ATIVOS:', kpis.products])
+    kpiRow.font = { bold: true, size: 12, color: { argb: colorText } }
+    kpiRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: colorViolet } }
+    
+    worksheet.mergeCells(`B${kpiRow.number}:C${kpiRow.number}`)
+    worksheet.mergeCells(`E${kpiRow.number}:F${kpiRow.number}`)
+
+    // 4. CABEÇALHO DA TABELA
+    worksheet.addRow([]) 
+    const headerRow = worksheet.addRow(['Produto', 'SKU', 'Categoria', 'Custo', 'Preço', 'Estoque', 'Total (Custo x Qtd)'])
+    
+    headerRow.eachCell((cell) => {
+      cell.font = { bold: true, color: { argb: colorText } }
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: colorViolet } }
+      cell.alignment = { vertical: 'middle', horizontal: 'center' }
+      cell.border = {
+        top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' }
+      }
+    })
+
+    // 5. PRODUTOS
+    list.forEach((p, index) => {
+      const row = worksheet.addRow([
+        p.name, p.sku, p.category, p.cost, p.price, p.qty, p.qty * p.cost
+      ])
+
+      row.getCell(4).numFmt = '"R$" #,##0.00'
+      row.getCell(5).numFmt = '"R$" #,##0.00'
+      row.getCell(7).numFmt = '"R$" #,##0.00'
+      row.getCell(6).alignment = { horizontal: 'center' }
+      row.getCell(1).font = { bold: true }
+
+      if (index % 2 === 0) {
+        row.eachCell((cell) => {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: colorSoftPink } }
+        })
+      }
+
+      row.eachCell((cell) => {
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+          bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+          left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+          right: { style: 'thin', color: { argb: 'FFE2E8F0' } }
+        }
+      })
+
+      if (p.qty <= p.minQty) {
+        row.getCell(6).font = { color: { argb: 'FFDC2626' }, bold: true }
+      }
+    })
+
+    // 6. LARGURA
+    worksheet.columns = [
+      { width: 35 }, { width: 15 }, { width: 20 }, { width: 15 }, { width: 15 }, { width: 10 }, { width: 25 },
+    ]
+
+    // 7. SALVAR
+    const buffer = await workbook.xlsx.writeBuffer()
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+    saveAs(blob, `Relatorio_Catalogo_WYNX_${new Date().toISOString().slice(0, 10)}.xlsx`)
+  }
 
   return (
     <div>
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div><h1 className="text-2xl sm:text-3xl font-display font-bold">Catálogo</h1><p className="text-sm text-text-muted dark:text-white/50">Gerencie suas peças.</p></div>
-        <button className="flex items-center justify-center gap-2 rounded-xl bg-brand-gradient px-5 py-2.5 font-bold text-white shadow-lg transition hover:scale-105 active:scale-95 w-full sm:w-auto" onClick={() => { setEditing(null); setOpen(true) }}><Plus className="h-5 w-5" /> Novo Produto</button>
+        
+        <div id="tour-csv" className="flex items-center gap-2 flex-wrap">
+          
+          {/* Exportar */}
+          <button onClick={exportBeautifulExcel} className="flex items-center justify-center gap-2 rounded-xl bg-white/50 dark:bg-white/5 border border-border-subtle dark:border-white/10 px-4 py-2.5 font-bold transition hover:bg-white dark:hover:bg-white/10" title="Exportar Relatório em Excel">
+            <Download className="h-4 w-4" /> Exportar
+          </button>
+
+          {/* Importar */}
+          <label className="flex items-center justify-center gap-2 rounded-xl bg-white/50 dark:bg-white/5 border border-border-subtle dark:border-white/10 px-4 py-2.5 font-bold transition hover:bg-white dark:hover:bg-white/10 cursor-pointer" title="Importar CSV ou Excel">
+            <Upload className="h-4 w-4" /> Importar
+            <input type="file" accept=".csv, .xlsx, .xls" className="hidden" onChange={importFile} />
+          </label>
+
+          {/* Novo */}
+          <button className="flex items-center justify-center gap-2 rounded-xl bg-brand-gradient px-5 py-2.5 font-bold text-white shadow-lg transition hover:scale-105 active:scale-95" onClick={() => { setEditing(null); setOpen(true) }}>
+            <Plus className="h-5 w-5" /> Novo Produto
+          </button>
+        </div>
       </div>
 
       {error && <p className="mb-4 text-sm text-danger bg-danger/10 p-3 rounded-lg border border-danger/20">{error}</p>}
@@ -465,9 +718,11 @@ function Products({ q }: { q: string }) {
 }
 
 function ProductForm({ product, categories, onClose, onSave }: { product: Product | null; categories: string[]; onClose: () => void; onSave: (data: any) => void }) {
+  const { suppliers } = useSession() // <-- Puxa os fornecedores
   const [form, setForm] = useState({
     name: product?.name || '', sku: product?.sku || '', category: product?.category || categories[0], color: product?.color || '', size: product?.size || '', barcode: product?.barcode || '',
-    price: product?.price || 0, cost: product?.cost || 0, qty: product?.qty || 0, minQty: product?.minQty || 3, notes: product?.notes || ''
+    price: product?.price || 0, cost: product?.cost || 0, qty: product?.qty || 0, minQty: product?.minQty || 3, notes: product?.notes || '',
+    supplierId: product?.supplierId || '' // <-- Adicionado fornecedor no estado
   })
 
   return (
@@ -476,6 +731,16 @@ function ProductForm({ product, categories, onClose, onSave }: { product: Produc
         <div className="flex flex-col gap-1.5 sm:col-span-2"><label className="text-sm font-medium text-text-secondary dark:text-white/70">Nome do produto *</label><input className="rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 outline-none focus:border-brand-violet" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></div>
         <div className="flex flex-col gap-1.5"><label className="text-sm font-medium text-text-secondary dark:text-white/70">Código / SKU *</label><input className="rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 outline-none focus:border-brand-violet" value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })} required /></div>
         <div className="flex flex-col gap-1.5"><label className="text-sm font-medium text-text-secondary dark:text-white/70">Categoria</label><select className="rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 outline-none" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>{categories.map((c) => <option key={c}>{c}</option>)}</select></div>
+        
+        {/* CAMPO DE FORNECEDOR ADICIONADO AQUI */}
+        <div className="flex flex-col gap-1.5 sm:col-span-2">
+          <label className="text-sm font-medium text-text-secondary dark:text-white/70">Fornecedor</label>
+          <select className="rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 outline-none" value={form.supplierId} onChange={(e) => setForm({ ...form, supplierId: e.target.value })}>
+            <option value="">Nenhum / Não informado</option>
+            {suppliers?.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+        </div>
+
         <div className="flex flex-col gap-1.5"><label className="text-sm font-medium text-text-secondary dark:text-white/70">Cor</label><input className="rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 outline-none focus:border-brand-violet" value={form.color} onChange={(e) => setForm({ ...form, color: e.target.value })} /></div>
         <div className="flex flex-col gap-1.5"><label className="text-sm font-medium text-text-secondary dark:text-white/70">Tamanho</label><input className="rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 outline-none focus:border-brand-violet" value={form.size} onChange={(e) => setForm({ ...form, size: e.target.value })} /></div>
         <div className="flex flex-col gap-1.5 sm:col-span-2"><label className="text-sm font-medium text-text-secondary dark:text-white/70">Código de barras</label><input className="rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 outline-none focus:border-brand-violet" value={form.barcode} onChange={(e) => setForm({ ...form, barcode: e.target.value })} /></div>
@@ -504,7 +769,7 @@ function Stock({ q }: { q: string }) {
         <motion.form initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="sticky top-28 space-y-5 rounded-3xl border border-border-subtle dark:border-white/10 bg-bg-surface/50 dark:bg-white/5 p-5 sm:p-6 backdrop-blur-xl" onSubmit={(e) => { e.preventDefault(); if (move(form)) setForm({ ...form, qty: 1, note: '' }) }}>
           <div className="flex items-center justify-between">
             <h2 className="text-lg sm:text-xl font-bold">Mover Estoque</h2>
-            <button type="button" className="flex items-center gap-2 rounded-xl bg-brand-violet/20 px-3 py-1.5 text-sm text-brand-violet transition hover:bg-brand-violet/30" onClick={() => setScannerOpen(true)}><Scan className="h-4 w-4" /> Scanner</button>
+            <button id="tour-scanner" type="button" className="flex items-center gap-2 rounded-xl bg-brand-violet/20 px-3 py-1.5 text-sm text-brand-violet transition hover:bg-brand-violet/30" onClick={() => setScannerOpen(true)}><Scan className="h-4 w-4" /> Scanner</button>
           </div>
 
           <div className="space-y-4">
@@ -1005,6 +1270,180 @@ function Profile() {
   )
 }
 
+function Suppliers({ q }: { q: string }) {
+  const { saveSupplier, removeSupplier, error } = useStore()
+  const { suppliers, user } = useSession()
+  const [open, setOpen] = useState(false)
+  const [editing, setEditing] = useState<any>(null)
+  
+  const list = (suppliers || []).filter((s: any) => normalize(s.name).includes(normalize(q)))
+
+  return (
+    <div>
+      <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div><h1 className="text-2xl sm:text-3xl font-display font-bold">Fornecedores</h1><p className="text-sm text-text-muted dark:text-white/50">Sua rede de contatos.</p></div>
+        <button className="flex items-center justify-center gap-2 rounded-xl bg-brand-gradient px-5 py-2.5 font-bold text-white shadow-lg transition hover:scale-105" onClick={() => { setEditing(null); setOpen(true) }}>
+          <Plus className="h-5 w-5" /> Novo Fornecedor
+        </button>
+      </div>
+
+      {error && <p className="mb-4 text-sm text-danger bg-danger/10 p-3 rounded-lg border border-danger/20">{error}</p>}
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {list.map((s: any) => (
+          <div key={s.id} className="group relative flex flex-col justify-between overflow-hidden rounded-3xl border border-border-subtle dark:border-white/10 bg-bg-surface/50 dark:bg-[#16142E]/80 p-5 backdrop-blur-md transition-all hover:-translate-y-1 hover:border-brand-violet/30 hover:shadow-2xl">
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <p className="font-bold text-base sm:text-lg">{s.name}</p>
+                <p className="text-xs text-text-muted dark:text-white/50">{s.cnpj || 'Sem CNPJ'}</p>
+              </div>
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-violet/20 text-brand-violet">
+                <Truck className="h-5 w-5" />
+              </div>
+            </div>
+            <div className="flex items-end justify-between">
+              <div>
+                <p className="text-xs text-text-muted dark:text-white/40 mb-1">Contato</p>
+                <p className="font-medium text-brand-cyan">{s.phone || 'Sem telefone'}</p>
+                <p className="text-xs text-text-muted dark:text-white/50">{s.email || ''}</p>
+              </div>
+              <div className="flex gap-2 opacity-100 sm:opacity-0 transition-opacity group-hover:opacity-100">
+                <button className="rounded-lg bg-black/5 dark:bg-white/10 p-2 hover:bg-black/10 dark:hover:bg-white/20" onClick={() => { setEditing(s); setOpen(true) }}><SettingsIcon className="h-4 w-4" /></button>
+                {user?.role === 'administrador' && <button className="rounded-lg bg-danger/10 p-2 text-danger hover:bg-danger/20" onClick={() => removeSupplier(s.id)}><X className="h-4 w-4" /></button>}
+              </div>
+            </div>
+          </div>
+        ))}
+        {list.length === 0 && <p className="col-span-full text-center py-8 text-text-muted dark:text-white/50">Nenhum fornecedor encontrado.</p>}
+      </div>
+
+      {open && (
+        <SpatialModal title={editing ? 'Editar Fornecedor' : 'Novo Fornecedor'} onClose={() => setOpen(false)}>
+          <form className="space-y-4" onSubmit={(e) => {
+            e.preventDefault()
+            const form = e.currentTarget
+            const data = {
+              id: editing?.id,
+              name: (form.elements.namedItem('name') as HTMLInputElement).value,
+              cnpj: (form.elements.namedItem('cnpj') as HTMLInputElement).value,
+              phone: (form.elements.namedItem('phone') as HTMLInputElement).value,
+              email: (form.elements.namedItem('email') as HTMLInputElement).value,
+            }
+            if (saveSupplier(data)) setOpen(false)
+          }}>
+            <div className="flex flex-col gap-1.5"><label className="text-sm font-medium text-text-secondary dark:text-white/70">Nome da Empresa *</label><input name="name" defaultValue={editing?.name} className="rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 outline-none focus:border-brand-violet" required /></div>
+            <div className="flex flex-col gap-1.5"><label className="text-sm font-medium text-text-secondary dark:text-white/70">CNPJ</label><input name="cnpj" defaultValue={editing?.cnpj} className="rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 outline-none focus:border-brand-violet" /></div>
+            <div className="flex flex-col gap-1.5"><label className="text-sm font-medium text-text-secondary dark:text-white/70">Telefone</label><input name="phone" defaultValue={editing?.phone} className="rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 outline-none focus:border-brand-violet" /></div>
+            <div className="flex flex-col gap-1.5"><label className="text-sm font-medium text-text-secondary dark:text-white/70">E-mail</label><input name="email" type="email" defaultValue={editing?.email} className="rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 outline-none focus:border-brand-violet" /></div>
+            <button className="mt-4 rounded-xl bg-brand-gradient p-3 font-bold text-white shadow-lg w-full transition hover:scale-[1.02]" type="submit">Salvar Fornecedor</button>
+          </form>
+        </SpatialModal>
+      )}
+    </div>
+  )
+}
+
+function TourGuide({ onClose, onStepChange }: { onClose: () => void; onStepChange: (step: number) => void }) {
+  const [step, setStep] = useState(0)
+  const [rect, setRect] = useState<DOMRect | null>(null)
+
+  const steps = [
+    { target: 'body', title: 'Bem-vindo ao WYNX', desc: 'Vamos fazer um tour rápido. O sistema é super intuitivo, mas queremos mostrar o caminho das pedras.' },
+    { target: '#tour-kpi', title: 'Seu Pulso Financeiro', desc: 'Aqui você vê o valor total do seu estoque e quantas unidades estão em falta.' },
+    { target: '#tour-dock', title: 'Navegação Rápida', desc: 'Use essa Dock flutuante para ir para qualquer tela, como o Catálogo de Produtos.' },
+    { target: '#tour-csv', title: 'Planilhas e Relatórios', desc: 'Já tem os produtos no Excel? Importe de uma vez! Ou exporte um relatório lindo para o seu sócio.' },
+    { target: '#tour-scanner', title: 'Câmera de Alta Velocidade', desc: 'Esqueça digitar códigos de barras. Use a câmera do celular para dar entrada ou saída em segundos.' },
+    { target: 'body', title: 'Tudo pronto!', desc: 'Você já conhece o básico. Clique em começar e domine o seu negócio.' }
+  ]
+
+  useEffect(() => {
+    // Avisa o Shell para trocar de tela se necessário
+    onStepChange(step)
+
+    // Delay para esperar a animação de troca de tela do app (Framer Motion)
+    const timer = setTimeout(() => {
+      const el = document.querySelector(steps[step].target)
+      if (el && steps[step].target !== 'body') {
+        setRect(el.getBoundingClientRect())
+        // Rola a tela para o elemento se ele estiver fora da viewport
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      } else {
+        setRect(null)
+      }
+    }, 450)
+
+    return () => clearTimeout(timer)
+  }, [step])
+
+  const next = () => {
+    if (step < steps.length - 1) {
+      setStep(s => s + 1)
+    } else {
+      localStorage.setItem('wynx_onboarding_done', 'true')
+      onClose()
+    }
+  }
+
+  const currentStep = steps[step]
+
+  return createPortal(
+    <div className="fixed inset-0 z-[2000] pointer-events-none">
+      
+      {/* Overlay com "Buraco" (Spotlight) usando box-shadow gigante no elemento alvo */}
+      {rect ? (
+        <div 
+          className="absolute rounded-2xl pointer-events-auto transition-all duration-500 ease-out"
+          style={{
+            top: rect.top - 8, left: rect.left - 8, width: rect.width + 16, height: rect.height + 16,
+            boxShadow: '0 0 0 9999px rgba(10, 5, 20, 0.75)',
+            zIndex: 1999,
+            border: '2px solid #F9A8D4',
+            borderRadius: '16px'
+          }}
+          onClick={next} // Permite clicar no elemento destacado para avançar
+        />
+      ) : (
+        <div className="absolute inset-0 bg-[#0A0514]/75 pointer-events-auto z-[1999]" onClick={next} />
+      )}
+
+      {/* Caixinha de Texto Flutuante */}
+      <motion.div 
+        key={step}
+        initial={{ opacity: 0, scale: 0.9, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        className="absolute pointer-events-auto w-[90%] max-w-sm rounded-3xl border border-white/20 bg-white/90 dark:bg-[#16142E]/95 p-6 shadow-2xl backdrop-blur-2xl"
+        style={{
+          top: rect ? (rect.top > window.innerHeight / 2 ? rect.top - 180 : rect.bottom + 30) : '50%',
+          left: rect ? Math.max(16, Math.min(rect.left, window.innerWidth - 384)) : '50%',
+          transform: rect ? 'none' : 'translate(-50%, -50%)',
+          zIndex: 2000
+        }}
+      >
+        <div className="flex items-center gap-3 mb-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-gradient shadow-lg text-white font-bold">
+            {step + 1}
+          </div>
+          <h3 className="text-lg font-bold text-text-primary dark:text-white">{currentStep.title}</h3>
+        </div>
+        
+        <p className="text-sm text-text-secondary dark:text-white/70 mb-6">
+          {currentStep.desc}
+        </p>
+
+        <div className="flex justify-between items-center">
+          <button onClick={() => { localStorage.setItem('wynx_onboarding_done', 'true'); onClose() }} className="text-xs font-semibold text-text-muted hover:text-text-primary dark:text-white/40 dark:hover:text-white transition">
+            Pular tutorial
+          </button>
+          <button onClick={next} className="rounded-xl bg-brand-gradient px-6 py-2.5 text-sm font-bold text-white shadow-lg transition hover:scale-105 active:scale-95">
+            {step === steps.length - 1 ? 'Começar' : 'Entendi'}
+          </button>
+        </div>
+      </motion.div>
+    </div>,
+    document.body
+  )
+}
+
 function Settings() {
   const { company, categories } = useSession()
   const { setCompany, newCategory } = useStore()
@@ -1020,6 +1459,7 @@ function Settings() {
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
         
+        {/* Card Empresa */}
         <form className="rounded-3xl border border-border-subtle dark:border-white/10 bg-white dark:bg-[#16142E] p-6 space-y-4 shadow-xl" onSubmit={(e) => { e.preventDefault(); setCompany(form) }}>
           <h3 className="text-lg font-bold mb-2 flex items-center gap-2">
             <Building2 className="h-5 w-5 text-brand-violet" /> Empresa
@@ -1051,6 +1491,7 @@ function Settings() {
           <button className="w-full rounded-xl bg-brand-gradient py-3 font-bold text-white mt-4 hover:scale-[1.02] transition shadow-lg">Salvar Empresa</button>
         </form>
 
+        {/* Card Categorias */}
         <div className="rounded-3xl border border-border-subtle dark:border-white/10 bg-white dark:bg-[#16142E] p-6 space-y-4 shadow-xl">
           <h3 className="text-lg font-bold mb-2 flex items-center gap-2">
             <Layers className="h-5 w-5 text-brand-cyan" /> Categorias
@@ -1067,6 +1508,30 @@ function Settings() {
             <input className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 outline-none focus:border-brand-violet text-text-primary dark:text-white" value={cat} onChange={(e) => setCat(e.target.value)} placeholder="Nova categoria..." />
             <button type="button" className="rounded-xl bg-brand-gradient px-5 font-bold text-white hover:scale-105 transition shadow-lg" onClick={() => { if (newCategory(cat)) setCat('') }}>Add</button>
           </div>
+        </div>
+
+        {/* NOVO CARD: AJUDA E TOUR */}
+        <div className="md:col-span-2 rounded-3xl border border-brand-pink/30 bg-brand-pink/5 p-6 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl">
+          <div className="flex items-center gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-brand-pink/20 text-brand-pink">
+              <Sparkles className="h-6 w-6" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-text-primary dark:text-white">Ajuda e Tour</h3>
+              <p className="text-sm text-text-muted dark:text-white/50">
+                A WYNX é intuitiva, mas se quiser rever as dicas principais ou apresentar para alguém, inicie o tour guiado.
+              </p>
+            </div>
+          </div>
+          <button 
+            onClick={() => {
+              localStorage.removeItem('wynx_onboarding_done');
+              window.location.reload();
+            }} 
+            className="w-full sm:w-auto shrink-0 rounded-xl bg-brand-gradient px-6 py-3 font-bold text-white transition hover:scale-[1.02] shadow-lg flex items-center justify-center gap-2"
+          >
+            <RefreshCcw className="h-4 w-4" /> Reiniciar Tour
+          </button>
         </div>
 
       </div>

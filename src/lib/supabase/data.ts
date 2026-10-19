@@ -1,6 +1,6 @@
 import { supabase } from "./client";
 import type { AppState, MovementType, PlanId, Role } from "../../types";
-import { emptyState } from "../../engine"; // <-- IMPORTANTE: Adicionado
+import { emptyState } from "../../engine";
 
 function mapPlan(dbPlan: string): PlanId {
   const map: Record<string, PlanId> = {
@@ -34,7 +34,6 @@ export async function loadCompanyState(
     .limit(1)
     .maybeSingle();
 
-  // Se não tem empresa, checa se é Super Admin
   if (mErr || !membership) {
     if (profile.is_super_admin) {
       return {
@@ -69,7 +68,8 @@ export async function loadCompanyState(
 
   if (cErr || !company) return { error: "Empresa não encontrada." };
 
-  const [productsRes, movementsRes, categoriesRes, alertsRes, auditRes, membersRes] =
+  // ADICIONADO: suppliersRes no Promise.all
+  const [productsRes, movementsRes, categoriesRes, alertsRes, auditRes, membersRes, suppliersRes] =
     await Promise.all([
       supabase.from("products").select("*").eq("company_id", companyId).order("created_at", { ascending: false }),
       supabase.from("movements").select("*").eq("company_id", companyId).order("created_at", { ascending: false }).limit(500),
@@ -77,6 +77,7 @@ export async function loadCompanyState(
       supabase.from("alerts").select("*").eq("company_id", companyId).order("created_at", { ascending: false }).limit(100),
       supabase.from("audit_logs").select("*").eq("company_id", companyId).order("created_at", { ascending: false }).limit(200),
       supabase.from("members").select("id, user_id, role, created_at").eq("company_id", companyId),
+      supabase.from("suppliers").select("*").eq("company_id", companyId).order("name"),
     ]);
 
   if (productsRes.error) return { error: productsRes.error.message };
@@ -126,7 +127,9 @@ export async function loadCompanyState(
     products: (productsRes.data ?? []).map((p: any) => ({
       id: p.id, companyId: p.company_id, name: p.name, sku: p.sku ?? "", category: p.category ?? "Geral",
       color: p.color ?? "", size: p.size ?? "", barcode: p.barcode ?? "", price: Number(p.price),
-      cost: Number(p.cost), qty: p.qty, minQty: p.min_qty, notes: p.notes ?? "", createdAt: p.created_at, updatedAt: p.updated_at,
+      cost: Number(p.cost), qty: p.qty, minQty: p.min_qty, notes: p.notes ?? "", 
+      supplierId: p.supplier_id, // <-- ADICIONADO AQUI
+      createdAt: p.created_at, updatedAt: p.updated_at,
     })),
     movements: (movementsRes.data ?? []).map((m: any) => ({
       id: m.id, companyId: m.company_id, productId: m.product_id, productName: m.product_name ?? "",
@@ -139,19 +142,27 @@ export async function loadCompanyState(
       id: a.id, companyId: a.company_id, userId: a.user_id, userName: a.user_name ?? "", action: a.action, details: a.details ?? "", createdAt: a.created_at,
     })),
     categories: { [companyId]: (categoriesRes.data ?? []).map((c: any) => c.name) },
+    // ADICIONADO: Mapeamento de fornecedores
+    suppliers: (suppliersRes.data ?? []).map((s: any) => ({
+      id: s.id, companyId: s.company_id, name: s.name, cnpj: s.cnpj, phone: s.phone, email: s.email, createdAt: s.created_at
+    })),
     sessionUserId: userId,
   };
 
   return { state: appState };
 }
 
+// --- PRODUTOS ---
 export async function createProduct(input: any) {
   const { data, error } = await supabase.from("products").insert({
     company_id: input.companyId, name: input.name, sku: input.sku, category: input.category,
     color: input.color, size: input.size, barcode: input.barcode, price: input.price,
     cost: input.cost, qty: input.qty ?? 0, min_qty: input.minQty, notes: input.notes,
+    supplier_id: input.supplierId || null, // <-- ADICIONADO AQUI
   }).select().single();
+  
   if (error) return { error: error.message };
+  
   if (input.qty > 0) {
     await supabase.from("movements").insert({
       company_id: input.companyId, product_id: data.id, user_id: input.userId, type: "entrada",
@@ -159,6 +170,7 @@ export async function createProduct(input: any) {
       product_name: data.name, user_name: input.userName,
     });
   }
+  
   if (input.category) {
     await supabase.from("categories").upsert({ company_id: input.companyId, name: input.category }, { onConflict: "company_id,name", ignoreDuplicates: true });
   }
@@ -169,8 +181,11 @@ export async function updateProduct(productId: string, input: any) {
   const { error } = await supabase.from("products").update({
     name: input.name, sku: input.sku, category: input.category, color: input.color,
     size: input.size, barcode: input.barcode, price: input.price, cost: input.cost,
-    min_qty: input.minQty, notes: input.notes, updated_at: new Date().toISOString(),
+    min_qty: input.minQty, notes: input.notes, 
+    supplier_id: input.supplierId || null, // <-- ADICIONADO AQUI
+    updated_at: new Date().toISOString(),
   }).eq("id", productId);
+  
   if (error) return { error: error.message };
   return {};
 }
@@ -181,6 +196,61 @@ export async function removeProduct(productId: string) {
   return {};
 }
 
+export async function bulkCreateProducts(companyId: string, userId: string, userName: string, products: any[]) {
+  const formatted = products.map(p => ({
+    company_id: companyId,
+    name: p.name,
+    sku: p.sku || `SKU-${Math.floor(Math.random() * 10000)}`,
+    category: p.category || 'Geral',
+    price: Number(p.price) || 0,
+    cost: Number(p.cost) || 0,
+    qty: Number(p.qty) || 0,
+    min_qty: Number(p.minQty) || 0,
+    barcode: p.barcode || ''
+  }));
+
+  const { data, error } = await supabase.from('products').insert(formatted).select();
+  if (error) return { error: error.message };
+
+  const movements = formatted.filter(p => p.qty > 0).map(p => {
+    const created = data.find(d => d.sku === p.sku);
+    return {
+      company_id: companyId, product_id: created.id, user_id: userId, type: 'entrada',
+      qty: p.qty, resulting_qty: p.qty, note: 'Importação em massa via CSV',
+      product_name: p.name, user_name: userName
+    };
+  });
+
+  if (movements.length > 0) {
+    await supabase.from('movements').insert(movements);
+  }
+  return { success: true };
+}
+
+// --- FORNECEDORES ---
+export async function createSupplier(input: any) {
+  const { error } = await supabase.from('suppliers').insert({
+    company_id: input.companyId, name: input.name, cnpj: input.cnpj, phone: input.phone, email: input.email
+  });
+  if (error) return { error: error.message };
+  return {};
+}
+
+export async function updateSupplier(id: string, input: any) {
+  const { error } = await supabase.from('suppliers').update({
+    name: input.name, cnpj: input.cnpj, phone: input.phone, email: input.email
+  }).eq('id', id);
+  if (error) return { error: error.message };
+  return {};
+}
+
+export async function removeSupplier(id: string) {
+  const { error } = await supabase.from('suppliers').delete().eq('id', id);
+  if (error) return { error: error.message };
+  return {};
+}
+
+// --- MOVIMENTAÇÕES ---
 export async function createMovement(input: any) {
   const { error: mvErr } = await supabase.from("movements").insert({
     company_id: input.companyId, product_id: input.productId, user_id: input.userId,
@@ -188,11 +258,13 @@ export async function createMovement(input: any) {
     product_name: input.productName, user_name: input.userName,
   });
   if (mvErr) return { error: mvErr.message };
+  
   const { error: upErr } = await supabase.from("products").update({ qty: input.resultingQty, updated_at: new Date().toISOString() }).eq("id", input.productId);
   if (upErr) return { error: upErr.message };
   return {};
 }
 
+// --- EMPRESA, CATEGORIAS E PERFIL ---
 export async function updateCompanyData(companyId: string, patch: any) {
   const { error } = await supabase.from("companies").update(patch).eq("id", companyId);
   if (error) return { error: error.message };
@@ -223,6 +295,7 @@ export async function removeMemberDb(userId: string) {
   return {};
 }
 
+// --- ALERTAS E PLANOS ---
 export async function markAlertReadDb(alertId: string) {
   await supabase.from("alerts").update({ read: true }).eq("id", alertId);
 }
@@ -237,13 +310,9 @@ export async function changePlanDb(companyId: string, plan: string) {
   return {};
 }
 
-// 1. Substitua a loadGlobalAdminData inteira por esta:
+// --- ADMIN GLOBAL ---
 export async function loadGlobalAdminData() {
-  const { data: companies, error: cError } = await supabase
-    .from('companies')
-    .select('*')
-    .order('created_at', { ascending: false });
-
+  const { data: companies, error: cError } = await supabase.from('companies').select('*').order('created_at', { ascending: false });
   if (cError) return { error: cError.message };
 
   const { data: profiles } = await supabase.from('profiles').select('id, name, email');
@@ -252,23 +321,16 @@ export async function loadGlobalAdminData() {
 
   const enrichedCompanies = companies.map(c => {
     const ownerProfile = profiles?.find(p => p.id === c.owner_id);
-    
-    // Simulação de dados de gráfico (nos últimos 6 meses)
-    const month = new Date(c.created_at).toLocaleString('pt-BR', { month: 'short' });
-    
     return {
       ...c,
       ownerName: ownerProfile?.name || 'Desconhecido',
       ownerEmail: ownerProfile?.email || '',
       membersCount: members?.filter(m => m.company_id === c.id).length || 0,
-      monthCreated: month
     };
   });
 
   return { data: enrichedCompanies, logs: logs || [] };
 }
-
-// 2. Adicione estas novas funções no final:
 
 export async function toggleCompanyStatus(companyId: string, currentStatus: string, adminEmail: string) {
   const newStatus = currentStatus === 'active' ? 'suspended' : 'active';
@@ -284,16 +346,6 @@ export async function toggleCompanyStatus(companyId: string, currentStatus: stri
   return { error: error?.message };
 }
 
-export async function impersonateCompany(companyId: string, adminEmail: string) {
-  // No mundo real, isso geraria um token temporário. Aqui, vamos logar a ação.
-  await supabase.from('admin_logs').insert({
-    admin_email: adminEmail,
-    action: 'Acessar Painel do Cliente',
-    details: `Entrou na empresa ID ${companyId}`
-  });
-  return { success: true };
-}
-
 export async function adminUpdateCompanyPlan(companyId: string, plan: string, action: 'cancel' | 'refund' | 'change') {
   let newPlan = plan;
   if (action === 'cancel' || action === 'refund') newPlan = 'gratuito';
@@ -301,4 +353,13 @@ export async function adminUpdateCompanyPlan(companyId: string, plan: string, ac
   const { error } = await supabase.from('companies').update({ plan: newPlan }).eq('id', companyId);
   if (error) return { error: error.message };
   return {};
+}
+
+export async function impersonateCompany(companyId: string, adminEmail: string) {
+  await supabase.from('admin_logs').insert({
+    admin_email: adminEmail,
+    action: 'Acessar Painel do Cliente',
+    details: `Entrou na empresa ID ${companyId}`
+  });
+  return { success: true };
 }
