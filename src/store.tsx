@@ -40,6 +40,9 @@ type Store = {
   // Fornecedores
   saveSupplier: (input: any) => boolean
   removeSupplier: (id: string) => boolean
+  // Lojas
+  saveStore: (input: any) => boolean
+  removeStore: (id: string) => boolean
   // Impersonação
   isImpersonating: boolean
   impersonateUser: (targetUserId: string) => Promise<boolean>
@@ -157,7 +160,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           minQty: Number(input.minQty) || 0,
           notes: input.notes,
           supplierId: input.supplierId || null,
-          storeId: input.storeId || null, // <-- Mantendo o storeId
+          storeId: input.storeId || null,
         }
         const r = input.id
           ? await db.updateProduct(input.id, payload)
@@ -374,21 +377,46 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       return true
     },
 
+    // --- LOJAS ---
+    saveStore: (input) => {
+      const user = currentUser(state)
+      const company = currentCompany(state)
+      if (!user || !company) return false
+      ;(async () => {
+        const r = input.id 
+          ? await db.updateStore(input.id, input)
+          : await db.createStore({ ...input, companyId: company.id })
+        if (r.error) { setError(r.error); return }
+        await reload(user.id)
+      })()
+      return true
+    },
+
+    removeStore: (id) => {
+      const user = currentUser(state)
+      if (!user) return false
+      ;(async () => {
+        const r = await db.removeStore(id)
+        if (r.error) { setError(r.error); return }
+        await reload(user.id)
+      })()
+      return true
+    },
+
     // --- IMPERSONAÇÃO ---
     isImpersonating,
     
     impersonateUser: async (targetUserId) => {
-      if (isImpersonating) return false // Já está impersonando
+      if (isImpersonating) return false
       
       const currentAdminId = state.sessionUserId
       if (!currentAdminId) return false
 
-      // Carrega o estado da empresa do cliente
       const result = await db.loadCompanyState(targetUserId)
       if (result.state) {
-        setOriginalUserId(currentAdminId) // Salva quem é o admin original
+        setOriginalUserId(currentAdminId)
         setIsImpersonating(true)
-        setState(result.state) // Renderiza o app como o cliente
+        setState(result.state)
         return true
       }
       return false
@@ -397,7 +425,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     stopImpersonation: async () => {
       if (!originalUserId) return
       
-      // Volta a carregar os dados do Admin
       const result = await db.loadCompanyState(originalUserId)
       if (result.state) {
         setState(result.state)

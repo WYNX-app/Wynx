@@ -11,7 +11,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { 
   X, LayoutDashboard, Package, Layers, History as HistoryIcon,
   FileText, Users, Settings as SettingsIcon, LogOut, Search, Sparkles, Plus, Minus, Scan,
-  CreditCard, QrCode, CheckCircle2, ShieldCheck, Lock, Crown, Building2, Ban, RefreshCcw, LogIn
+  CreditCard, QrCode, CheckCircle2, ShieldCheck, Lock, Crown, Building2, Ban, RefreshCcw, LogIn, Store as StoreIcon
 } from 'lucide-react'
 import { supabase } from './lib/supabase/client'
 import * as db from './lib/supabase/data'
@@ -33,6 +33,7 @@ const DOCK_ITEMS = [
   { id: 'dashboard', label: 'Painel', icon: LayoutDashboard },
   { id: 'produtos', label: 'Produtos', icon: Package },
   { id: 'estoque', label: 'Estoque', icon: Layers },
+  { id: 'lojas', label: 'Lojas', icon: StoreIcon },
   { id: 'fornecedores', label: 'Fornecedores', icon: Truck },
   { id: 'relatorios', label: 'Relatórios', icon: FileText },
   { id: 'historico', label: 'Histórico', icon: HistoryIcon },
@@ -231,11 +232,11 @@ function Shell() {
   const visibleDockItems = isSuperAdminNoCompany ? [] : DOCK_ITEMS;
 
   const glassClasses = `
-    bg-white/40 dark:bg-[#16142E]/40 
-    backdrop-blur-2xl backdrop-saturate-200 backdrop-brightness-110
-    border border-white/50 dark:border-white/15 
+    bg-white/60 dark:bg-[#16142E]/70 
+    backdrop-blur-2xl backdrop-saturate-150
+    border border-white/40 dark:border-white/10 
     shadow-[0_8px_32px_rgba(0,0,0,0.08),inset_0_1px_1px_rgba(255,255,255,0.6)] 
-    dark:shadow-[0_8px_32px_rgba(0,0,0,0.6),inset_0_1px_1px_rgba(255,255,255,0.1)]
+    dark:shadow-[0_8px_32px_rgba(0,0,0,0.5),inset_0_1px_1px_rgba(255,255,255,0.1)]
   `
 
   return (
@@ -338,6 +339,7 @@ function Shell() {
                 {page === 'assinatura' && <Billing />}
                 {page === 'insights' && <Insights q={q} />}
                 {page === 'alertas' && <Alerts q={q} />}
+                {page === 'lojas' && <Stores q={q} />}
                 {(page as string) === 'super-admin' && <SuperAdmin />}
               </>
             )}
@@ -347,12 +349,12 @@ function Shell() {
 
       {/* Dock de Navegação (Vidro Ultra Realista) */}
       <div className="fixed bottom-4 sm:bottom-6 inset-x-0 z-[999] flex justify-center pointer-events-none px-4">
-        <motion.nav 
-          id="tour-dock"
-          initial={{ y: 50, opacity: 0 }} 
-          animate={{ y: 0, opacity: 1 }} 
-          className={`pointer-events-auto flex w-full max-w-lg sm:w-max items-center justify-between sm:justify-start gap-1 sm:gap-2 rounded-[28px] p-2 ${glassClasses}`}
-        >
+<motion.nav 
+  id="tour-dock"
+  initial={{ y: 50, opacity: 0 }} 
+  animate={{ y: 0, opacity: 1 }} 
+  className="pointer-events-auto flex w-full max-w-lg sm:w-max items-center justify-between sm:justify-start gap-1 sm:gap-2 rounded-[28px] p-2 bg-white/80 dark:bg-[#16142E]/90 backdrop-blur-xl border border-white/50 dark:border-white/10 shadow-2xl"
+>
           {visibleDockItems.map((item) => {
             const Icon = item.icon
             const isActive = page === item.id
@@ -1349,6 +1351,73 @@ function Suppliers({ q }: { q: string }) {
             <div className="flex flex-col gap-1.5"><label className="text-sm font-medium text-text-secondary dark:text-white/70">Telefone</label><input name="phone" defaultValue={editing?.phone} className="rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 outline-none focus:border-brand-violet" /></div>
             <div className="flex flex-col gap-1.5"><label className="text-sm font-medium text-text-secondary dark:text-white/70">E-mail</label><input name="email" type="email" defaultValue={editing?.email} className="rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 outline-none focus:border-brand-violet" /></div>
             <button className="mt-4 rounded-xl bg-brand-gradient p-3 font-bold text-white shadow-lg w-full transition hover:scale-[1.02]" type="submit">Salvar Fornecedor</button>
+          </form>
+        </SpatialModal>
+      )}
+    </div>
+  )
+}
+function Stores({ q }: { q: string }) {
+  const { saveStore, removeStore, error } = useStore()
+  const { stores, user } = useSession()
+  const [open, setOpen] = useState(false)
+  const [editing, setEditing] = useState<any>(null)
+  
+  const list = (stores || []).filter((s: any) => normalize(s.name).includes(normalize(q)))
+
+  return (
+    <div>
+      <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div><h1 className="text-2xl sm:text-3xl font-display font-bold">Lojas e Locais</h1><p className="text-sm text-text-muted dark:text-white/50">Gerencie onde seu estoque fica.</p></div>
+        <button className="flex items-center justify-center gap-2 rounded-xl bg-brand-gradient px-5 py-2.5 font-bold text-white shadow-lg transition hover:scale-105" onClick={() => { setEditing(null); setOpen(true) }}>
+          <Plus className="h-5 w-5" /> Novo Local
+        </button>
+      </div>
+
+      {error && <p className="mb-4 text-sm text-danger bg-danger/10 p-3 rounded-lg border border-danger/20">{error}</p>}
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {list.map((s: any) => (
+          <div key={s.id} className="group relative flex flex-col justify-between overflow-hidden rounded-3xl border border-border-subtle dark:border-white/10 bg-bg-surface/50 dark:bg-[#16142E]/80 p-5 backdrop-blur-md transition-all hover:-translate-y-1 hover:border-brand-violet/30 hover:shadow-2xl">
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <p className="font-bold text-base sm:text-lg">{s.name}</p>
+                <p className="text-xs text-text-muted dark:text-white/50 uppercase">{s.type}</p>
+              </div>
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-pink/20 text-brand-pink">
+                <StoreIcon className="h-5 w-5" />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 opacity-100 sm:opacity-0 transition-opacity group-hover:opacity-100 mt-4">
+              <button className="rounded-lg bg-black/5 dark:bg-white/10 p-2 hover:bg-black/10 dark:hover:bg-white/20" onClick={() => { setEditing(s); setOpen(true) }}><SettingsIcon className="h-4 w-4" /></button>
+              {user?.role === 'administrador' && <button className="rounded-lg bg-danger/10 p-2 text-danger hover:bg-danger/20" onClick={() => removeStore(s.id)}><X className="h-4 w-4" /></button>}
+            </div>
+          </div>
+        ))}
+        {list.length === 0 && <p className="col-span-full text-center py-8 text-text-muted dark:text-white/50">Nenhum local cadastrado.</p>}
+      </div>
+
+      {open && (
+        <SpatialModal title={editing ? 'Editar Local' : 'Novo Local'} onClose={() => setOpen(false)}>
+          <form className="space-y-4" onSubmit={(e) => {
+            e.preventDefault()
+            const form = e.currentTarget
+            const data = {
+              id: editing?.id,
+              name: (form.elements.namedItem('name') as HTMLInputElement).value,
+              type: (form.elements.namedItem('type') as HTMLSelectElement).value,
+            }
+            if (saveStore(data)) setOpen(false)
+          }}>
+            <div className="flex flex-col gap-1.5"><label className="text-sm font-medium text-text-secondary dark:text-white/70">Nome do Local *</label><input name="name" defaultValue={editing?.name} placeholder="Ex: Loja Centro ou Depósito" className="rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 outline-none focus:border-brand-violet" required /></div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-text-secondary dark:text-white/70">Tipo</label>
+              <select name="type" defaultValue={editing?.type || 'loja'} className="rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 outline-none focus:border-brand-violet">
+                <option value="loja">Loja (Vendas)</option>
+                <option value="deposito">Depósito (Armazenamento)</option>
+              </select>
+            </div>
+            <button className="mt-4 rounded-xl bg-brand-gradient p-3 font-bold text-white shadow-lg w-full transition hover:scale-[1.02]" type="submit">Salvar Local</button>
           </form>
         </SpatialModal>
       )}
