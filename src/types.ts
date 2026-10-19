@@ -113,10 +113,38 @@ export interface AppState {
 }
 
 export const PLANS: Record<PlanId, { name: string; price: number; products: number; users: number; ai: string; extras: string }> = {
-  gratuito: { name: 'Gratuito', price: 0, products: 100, users: 1, ai: 'Indicadores básicos', extras: 'Alertas de estoque mínimo' },
-  essencial: { name: 'Essencial', price: 39.9, products: 500, users: 3, ai: 'Insights de reposição', extras: 'Relatórios por período' },
-  profissional: { name: 'Profissional', price: 79.9, products: 2000, users: 10, ai: 'IA completa de recomendações', extras: 'Equipe, exportação e histórico avançado' },
-  empresarial: { name: 'Empresarial', price: 149.9, products: Infinity, users: Infinity, ai: 'IA personalizada', extras: 'Suporte premium e limites ilimitados' }
+  gratuito: { 
+    name: 'Gratuito', 
+    price: 0, 
+    products: 50, 
+    users: 1, 
+    ai: 'Insights básicos', 
+    extras: 'Suporte por e-mail' 
+  },
+  essencial: { 
+    name: 'Starter', 
+    price: 149, 
+    products: 300, 
+    users: 3, 
+    ai: 'Insights avançados', 
+    extras: 'Scanner de código' 
+  },
+  profissional: { 
+    name: 'Business', 
+    price: 499, 
+    products: Infinity, 
+    users: 10, 
+    ai: 'Previsão de demanda', 
+    extras: 'Relatórios em PDF' 
+  },
+  empresarial: { 
+    name: 'Enterprise', 
+    price: 1299, 
+    products: Infinity, 
+    users: Infinity, 
+    ai: 'IA exclusiva', 
+    extras: 'Suporte prioritário' 
+  }
 }
 
 export const SEGMENTS = [

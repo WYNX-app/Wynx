@@ -15,6 +15,9 @@
     "build:installer": "vite build && electron-builder --win nsis portable"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.3",
+    "@capacitor/cli": "^8.5.3",
+    "@capacitor/core": "^8.5.3",
     "@hugeicons/core-free-icons": "^4.3.5",
     "@hugeicons/react": "^1.1.10",
     "@supabase/supabase-js": "^2.117.3",

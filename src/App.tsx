@@ -1,11 +1,12 @@
 import { PasswordField } from './components/PasswordField'
+import { 
+  X, LayoutDashboard, Package, Layers, History as HistoryIcon,
+  FileText, Users, Settings as SettingsIcon, LogOut, Search, Sparkles, Plus, Minus, Scan,
+  CreditCard, QrCode, CheckCircle2, ShieldCheck, Lock
+} from 'lucide-react'
 import { Scanner } from './components/Scanner'
 import { FormEvent, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { 
-  X, LayoutDashboard, Package, Layers, History as HistoryIcon, 
-  FileText, Users, Settings as SettingsIcon, LogOut, Search, Sparkles, Plus, Minus, Scan
-} from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Bar, BarChart, CartesianGrid, Cell, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis
@@ -709,12 +710,155 @@ function Settings() {
   )
 }
 
+/* ============================================================
+   CHECKOUT SIMULATION (Pagamento Falso)
+   ============================================================ */
+function CheckoutSimulation({ plan, onClose, onSuccess }: { plan: any, onClose: () => void, onSuccess: () => void }) {
+  const [method, setMethod] = useState<'cartao' | 'pix'>('cartao')
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [isSuccess, setIsSuccess] = useState(false)
+
+  // Máscaras simples para os inputs falsos
+  const formatCard = (v: string) => v.replace(/\D/g, '').replace(/(.{4})/g, '$1 ').trim().slice(0, 19)
+  const formatExpiry = (v: string) => v.replace(/\D/g, '').replace(/(.{2})/, '$1/').slice(0, 5)
+
+  const handlePay = (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsProcessing(true)
+    
+    // Simula a latência da API do gateway (2 segundos)
+    setTimeout(() => {
+      setIsProcessing(false)
+      setIsSuccess(true)
+      
+      // Espera mais 1.5s para o usuário ver a tela de sucesso, e então aplica o plano
+      setTimeout(() => {
+        onSuccess()
+      }, 1500)
+    }, 2000)
+  }
+
+  return createPortal(
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={!isProcessing && !isSuccess ? onClose : undefined} />
+      
+      <motion.div 
+        initial={{ opacity: 0, y: 50, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 20, scale: 0.95 }}
+        className="relative w-full max-w-lg rounded-3xl border border-border-subtle dark:border-white/10 bg-bg-surface/95 dark:bg-[#16142E]/95 shadow-2xl overflow-hidden backdrop-blur-2xl"
+      >
+        {/* Header do Checkout */}
+        <div className="flex items-center justify-between border-b border-border-subtle dark:border-white/10 px-6 py-4 bg-black/5 dark:bg-white/5">
+          <div className="flex items-center gap-2">
+            <Lock className="h-4 w-4 text-success" />
+            <span className="text-sm font-semibold tracking-wide text-text-secondary dark:text-white/70 uppercase">Checkout Seguro</span>
+          </div>
+          {!isProcessing && !isSuccess && (
+            <button onClick={onClose} className="rounded-full p-2 hover:bg-black/10 dark:hover:bg-white/10 transition">
+              <X className="h-5 w-5" />
+            </button>
+          )}
+        </div>
+
+        <div className="p-6">
+          {!isProcessing && !isSuccess && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+              <div className="mb-6 text-center">
+                <p className="text-sm text-text-muted dark:text-white/50">Você está assinando o plano</p>
+                <h2 className="text-2xl font-display font-bold text-brand-violet">{plan.name}</h2>
+                <p className="text-3xl font-black mt-2">{formatMoney(plan.price)}<span className="text-sm font-normal text-text-muted">/mês</span></p>
+              </div>
+
+              <div className="flex gap-2 p-1 bg-black/5 dark:bg-black/40 rounded-2xl mb-6">
+                <button onClick={() => setMethod('cartao')} className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium transition ${method === 'cartao' ? 'bg-bg-surface dark:bg-white text-text-primary dark:text-black shadow-md' : 'text-text-muted dark:text-white/60 hover:text-text-primary'}`}>
+                  <CreditCard className="h-4 w-4" /> Cartão de Crédito
+                </button>
+                <button onClick={() => setMethod('pix')} className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium transition ${method === 'pix' ? 'bg-bg-surface dark:bg-white text-text-primary dark:text-black shadow-md' : 'text-text-muted dark:text-white/60 hover:text-text-primary'}`}>
+                  <QrCode className="h-4 w-4" /> Pix
+                </button>
+              </div>
+
+              <form onSubmit={handlePay} className="space-y-4">
+                {method === 'cartao' ? (
+                  <div className="space-y-4">
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-xs font-medium text-text-muted dark:text-white/50 uppercase">Número do Cartão</label>
+                      <input required placeholder="0000 0000 0000 0000" className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-bg-base dark:bg-black/20 p-3 outline-none focus:border-brand-violet" onChange={(e) => e.target.value = formatCard(e.target.value)} />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-xs font-medium text-text-muted dark:text-white/50 uppercase">Nome impresso no cartão</label>
+                      <input required placeholder="Como está no cartão" className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-bg-base dark:bg-black/20 p-3 outline-none focus:border-brand-violet uppercase" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-xs font-medium text-text-muted dark:text-white/50 uppercase">Validade</label>
+                        <input required placeholder="MM/AA" className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-bg-base dark:bg-black/20 p-3 outline-none focus:border-brand-violet" onChange={(e) => e.target.value = formatExpiry(e.target.value)} />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-xs font-medium text-text-muted dark:text-white/50 uppercase">CVV</label>
+                        <input required type="password" placeholder="123" maxLength={4} className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-bg-base dark:bg-black/20 p-3 outline-none focus:border-brand-violet" />
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-6 space-y-4">
+                    <div className="p-4 bg-white rounded-2xl shadow-lg border-4 border-brand-violet">
+                      {/* QR Code Falso (Gerado via CSS/SVG) */}
+                      <svg width="120" height="120" viewBox="0 0 100 100" className="opacity-80">
+                        <rect width="100" height="100" fill="white" />
+                        <path d="M10 10h20v20H10zM70 10h20v20H70zM10 70h20v20H10zM40 10h10v10H40zM50 20h10v10H50zM30 40h10v10H30zM60 40h10v10H60zM40 60h10v10H40zM70 50h10v10H70zM20 50h10v10H20zM50 50h10v10H50zM80 50h10v10H80zM80 70h10v10H80zM50 80h10v10H50zM20 80h10v10H20z" fill="black" />
+                        <path d="M15 15h10v10H15zM75 15h10v10H75zM15 75h10v10H15z" fill="#7C3AED" />
+                      </svg>
+                    </div>
+                    <p className="text-sm text-text-muted dark:text-white/60 text-center max-w-xs">Abra o app do seu banco e escaneie o código acima para pagar via Pix.</p>
+                  </div>
+                )}
+
+                <button type="submit" className="w-full rounded-xl bg-brand-gradient py-4 font-bold text-white shadow-lg transition hover:scale-[1.02] mt-6 flex items-center justify-center gap-2">
+                  <ShieldCheck className="h-5 w-5" /> Confirmar Pagamento de {formatMoney(plan.price)}
+                </button>
+                <p className="text-center text-[10px] text-text-muted dark:text-white/40 mt-2 flex items-center justify-center gap-1">
+                  <Lock className="h-3 w-3" /> Ambiente criptografado e 100% seguro.
+                </p>
+              </form>
+            </motion.div>
+          )}
+
+          {isProcessing && (
+            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center justify-center py-16 space-y-4">
+              <div className="h-12 w-12 animate-spin rounded-full border-4 border-brand-violet border-t-transparent" />
+              <h3 className="text-lg font-bold">Processando pagamento...</h3>
+              <p className="text-sm text-text-muted dark:text-white/50">Aguarde enquanto validamos os dados com o banco.</p>
+            </motion.div>
+          )}
+
+          {isSuccess && (
+            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center justify-center py-12 space-y-4">
+              <motion.div initial={{ scale: 0 }} animate={{ scale: 1, rotate: 360 }} transition={{ type: 'spring' }}>
+                <CheckCircle2 className="h-20 w-20 text-success" />
+              </motion.div>
+              <h3 className="text-2xl font-display font-bold text-center">Pagamento Aprovado!</h3>
+              <p className="text-sm text-text-muted dark:text-white/50 text-center max-w-xs">Sua conta foi atualizada para o plano <strong className="text-text-primary dark:text-white">{plan.name}</strong>. Aproveite os novos recursos.</p>
+            </motion.div>
+          )}
+        </div>
+      </motion.div>
+    </div>,
+    document.body
+  )
+}
+
 function Billing() {
   const { company } = useSession()
   const { setPlan } = useStore()
+  const [checkoutPlan, setCheckoutPlan] = useState<{id: PlanId, plan: any} | null>(null)
+
   return (
     <div className="space-y-6">
-      <div><h1 className="text-2xl sm:text-3xl font-display font-bold">Planos</h1><p className="text-sm text-text-muted dark:text-white/50">Escolha o nível de poder.</p></div>
+      <div>
+        <h1 className="text-2xl sm:text-3xl font-display font-bold">Planos e Assinatura</h1>
+        <p className="text-sm text-text-muted dark:text-white/50">Escolha o nível de poder do seu sistema.</p>
+      </div>
+      
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {(Object.keys(PLANS) as PlanId[]).map((id) => {
           const plan = PLANS[id]; const current = company?.plan === id
@@ -729,11 +873,30 @@ function Billing() {
                   <li className="flex items-center gap-2"><div className="h-1 w-1 rounded-full bg-brand-cyan" /> {plan.ai}</li>
                 </ul>
               </div>
-              <button className={`mt-8 w-full rounded-xl py-3 font-bold transition ${current ? 'bg-black/5 dark:bg-white/10 cursor-default' : 'bg-text-primary dark:bg-white text-white dark:text-black hover:scale-105'}`} disabled={current} onClick={() => setPlan(id)}>{current ? 'Atual' : 'Selecionar'}</button>
+              <button 
+                className={`mt-8 w-full rounded-xl py-3 font-bold transition flex items-center justify-center gap-2 ${current ? 'bg-black/5 dark:bg-white/10 cursor-default' : 'bg-brand-gradient text-white hover:scale-105 shadow-[0_0_15px_rgba(196,181,253,0.3)]'}`} 
+                disabled={current} 
+                onClick={() => setCheckoutPlan({ id, plan })}
+              >
+                {current ? 'Plano Atual' : 'Assinar Agora'}
+              </button>
             </div>
           )
         })}
       </div>
+
+      <AnimatePresence>
+        {checkoutPlan && (
+          <CheckoutSimulation 
+            plan={checkoutPlan.plan} 
+            onClose={() => setCheckoutPlan(null)} 
+            onSuccess={() => {
+              setPlan(checkoutPlan.id)
+              setCheckoutPlan(null)
+            }} 
+          />
+        )}
+      </AnimatePresence>
     </div>
   )
 }
