@@ -12,14 +12,15 @@ function storePath() {
 }
 
 function createWindow() {
-  const win = new BrowserWindow({
-    width: 1360,
-    height: 860,
-    minWidth: 1080,
-    minHeight: 700,
-    title: 'WYNX — Gestão Inteligente de Estoque',
-    backgroundColor: '#EFF6FF',
-    autoHideMenuBar: true,
+const win = new BrowserWindow({
+  width: 1360,
+  height: 860,
+  minWidth: 1080,
+  minHeight: 700,
+  title: 'WYNX — Gestão Inteligente de Estoque',
+  icon: path.join(__dirname, '..', 'assets', 'icon.ico'),
+  backgroundColor: '#EFF6FF',
+  autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
@@ -28,6 +29,14 @@ function createWindow() {
     }
   })
 
+    win.webContents.session.setPermissionRequestHandler((webContents, permission, callback) => {
+    if (permission === 'media') {
+      callback(true)
+    } else {
+      callback(false)
+    }
+  })
+  
   if (isDev) {
     win.loadURL('http://localhost:5173')
   } else {
