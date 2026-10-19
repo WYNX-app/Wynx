@@ -312,8 +312,9 @@ export async function updateUserProfile(userId: string, name: string) {
   return {};
 }
 
-export async function updateMemberRole(memberId: string, role: Role) {
-  const { error } = await supabase.from("members").update({ role }).eq("id", memberId);
+export async function updateMemberRole(userId: string, role: Role) {
+  // Corrigido: procurar por user_id em vez de id
+  const { error } = await supabase.from("members").update({ role }).eq("user_id", userId);
   if (error) return { error: error.message };
   return {};
 }
