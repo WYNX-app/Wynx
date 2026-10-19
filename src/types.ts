@@ -20,11 +20,12 @@ export interface User {
   name: string
   email: string
   role: Role
-  passwordSalt: string
-  passwordHash: string
+  passwordSalt?: string // <-- Opcional agora
+  passwordHash?: string // <-- Opcional agora
   companyId: string
   createdAt: string
   lastLoginAt?: string
+  isSuperAdmin?: boolean // <-- Adicionado
 }
 
 export interface Company {

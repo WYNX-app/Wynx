@@ -351,17 +351,18 @@ export function useSession() {
   const { state } = useStore()
   const user = currentUser(state)
   const company = currentCompany(state)
+  
   return {
     user,
     company,
-    products: state.products.filter((p) => p.companyId === company?.id),
-    movements: state.movements.filter((m) => m.companyId === company?.id),
-    notifications: state.notifications.filter((n) => n.companyId === company?.id),
-    audit: state.audit.filter((a) => a.companyId === company?.id),
-    team: state.users.filter((u) => u.companyId === company?.id),
+    products: company ? state.products.filter((p) => p.companyId === company.id) : [],
+    movements: company ? state.movements.filter((m) => m.companyId === company.id) : [],
+    notifications: company ? state.notifications.filter((n) => n.companyId === company.id) : [],
+    audit: company ? state.audit.filter((a) => a.companyId === company.id) : [],
+    team: company ? state.users.filter((u) => u.companyId === company.id) : [],
     categories: company ? state.categories[company.id] || [] : [],
-    insights: generateInsights(state),
-    kpis: kpis(state)
+    insights: company ? generateInsights(state) : [],
+    kpis: company ? kpis(state) : { products: 0, units: 0, low: 0, value: 0, sales: 0, revenue: 0, idle: 0, movements: 0 }
   }
 }
 

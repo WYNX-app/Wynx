@@ -1,14 +1,15 @@
 import { PasswordField } from './components/PasswordField'
-import { supabase } from './lib/supabase/client'
-import { 
-  X, LayoutDashboard, Package, Layers, History as HistoryIcon,
-  FileText, Users, Settings as SettingsIcon, LogOut, Search, Sparkles, Plus, Minus, Scan,
-  CreditCard, QrCode, CheckCircle2, ShieldCheck, Lock
-} from 'lucide-react'
 import { Scanner } from './components/Scanner'
 import { FormEvent, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
+import { 
+  X, LayoutDashboard, Package, Layers, History as HistoryIcon,
+  FileText, Users, Settings as SettingsIcon, LogOut, Search, Sparkles, Plus, Minus, Scan,
+  CreditCard, QrCode, CheckCircle2, ShieldCheck, Lock, Crown, Building2, Ban, RefreshCcw, LogIn
+} from 'lucide-react'
+import { supabase } from './lib/supabase/client'
+import * as db from './lib/supabase/data'
 import {
   Bar, BarChart, CartesianGrid, Cell, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis
 } from 'recharts'
@@ -17,7 +18,7 @@ import {
 } from './engine'
 import { useSession, useStore } from './store'
 import { MovementType, PLANS, PageId, PlanId, Product, Role, SEGMENTS } from './types'
-import { Logo } from './ui' // Não precisamos mais do Modal antigo
+import { Logo } from './ui'
 import Aurora from './components/Aurora'
 import ThemeToggle from './components/ThemeToggle'
 
@@ -48,11 +49,11 @@ export default function App() {
 }
 
 /* ============================================================
-   MODAL ESPACIAL (Substitui o antigo e resolve o overflow)
+   MODAL ESPACIAL
    ============================================================ */
 function SpatialModal({ title, children, onClose }: { title: string, children: React.ReactNode, onClose: () => void }) {
   return createPortal(
-    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div className="fixed inset-0 z-[1000] flex items-end sm:items-center justify-center p-0 sm:p-4">
       <motion.div 
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
         className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} 
@@ -60,7 +61,7 @@ function SpatialModal({ title, children, onClose }: { title: string, children: R
       <motion.div 
         initial={{ opacity: 0, y: 100, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 100, scale: 0.95 }}
         transition={{ type: "spring", damping: 25, stiffness: 300 }}
-        className="relative w-full sm:max-w-2xl max-h-[90vh] flex flex-col rounded-t-3xl sm:rounded-3xl border border-border-subtle dark:border-white/10 bg-bg-surface/95 dark:bg-[#16142E]/95 backdrop-blur-2xl shadow-2xl overflow-hidden"
+        className="relative w-full sm:max-w-2xl max-h-[90vh] flex flex-col rounded-t-3xl sm:rounded-3xl border border-border-subtle dark:border-white/10 bg-white dark:bg-[#16142E] shadow-2xl overflow-hidden"
       >
         <div className="flex items-center justify-between border-b border-border-subtle dark:border-white/10 px-6 py-4 shrink-0">
           <h2 className="text-lg font-bold text-text-primary dark:text-white">{title}</h2>
@@ -106,7 +107,7 @@ function Splash() {
 function Auth() {
   const { login, register, error, setError } = useStore()
   const [mode, setMode] = useState<'login' | 'cadastro'>('login')
-  const [isInvited, setIsInvited] = useState(false) // Novo estado
+  const [isInvited, setIsInvited] = useState(false)
   const [form, setForm] = useState({ name: '', email: '', password: '', company: '', segment: SEGMENTS[0], city: '', stateUf: 'PI' })
 
   const submit = async (e: FormEvent) => {
@@ -121,7 +122,7 @@ function Auth() {
       
       <motion.div 
         initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-        className="relative z-10 w-full max-w-md rounded-3xl border border-border-subtle dark:border-white/10 bg-bg-surface/80 dark:bg-white/5 p-6 sm:p-8 shadow-2xl backdrop-blur-2xl"
+        className="relative z-10 w-full max-w-md rounded-3xl border border-border-subtle dark:border-white/10 bg-white/80 dark:bg-white/5 p-6 sm:p-8 shadow-2xl backdrop-blur-2xl"
       >
         <div className="mb-8 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -149,7 +150,6 @@ function Auth() {
             <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="space-y-4">
               <input className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 text-text-primary dark:text-white outline-none focus:border-brand-violet" placeholder="Seu nome completo" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
               
-              {/* Toggle para quem foi convidado */}
               <div className="flex items-center gap-2 py-2">
                 <input type="checkbox" id="isInvited" checked={isInvited} onChange={(e) => setIsInvited(e.target.checked)} className="h-4 w-4 rounded border-border-subtle text-brand-violet focus:ring-brand-violet" />
                 <label htmlFor="isInvited" className="text-sm font-medium text-text-secondary dark:text-white/70 cursor-pointer">
@@ -157,7 +157,6 @@ function Auth() {
                 </label>
               </div>
 
-              {/* Só pede o nome da empresa se NÃO for convidado */}
               {!isInvited && (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
                   <input className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 text-text-primary dark:text-white outline-none focus:border-brand-violet" placeholder="Nome da sua empresa" value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} required />
@@ -180,7 +179,7 @@ function Auth() {
 }
 
 /* ============================================================
-   SHELL (Estrutura Espacial e Responsiva)
+   SHELL (Layout Principal)
    ============================================================ */
 function Shell() {
   const { user, company, notifications } = useSession()
@@ -202,32 +201,52 @@ function Shell() {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
+  const isSuperAdminNoCompany = user?.isSuperAdmin && !company;
+  const visibleDockItems = isSuperAdminNoCompany ? [] : DOCK_ITEMS;
+
+  // Classes base para o Vidro (Glassmorphism Realista)
+  const glassClasses = `
+    bg-white/40 dark:bg-[#16142E]/40 
+    backdrop-blur-2xl backdrop-saturate-200 backdrop-brightness-110
+    border border-white/50 dark:border-white/15 
+    shadow-[0_8px_32px_rgba(0,0,0,0.08),inset_0_1px_1px_rgba(255,255,255,0.6)] 
+    dark:shadow-[0_8px_32px_rgba(0,0,0,0.6),inset_0_1px_1px_rgba(255,255,255,0.1)]
+  `
+
   return (
     <div className="relative min-h-screen bg-bg-base dark:bg-[#0A0514] text-text-primary dark:text-white selection:bg-brand-pink/30 overflow-hidden transition-colors duration-500">
       
-      {/* Fundo imersivo */}
-      <div className="fixed inset-0 z-0 pointer-events-none opacity-20 dark:opacity-20 transition-opacity">
+      {/* Fundo imersivo (Aumentei a opacidade para o vidro ter o que desfocar) */}
+      <div className="fixed inset-0 z-0 pointer-events-none opacity-40 dark:opacity-40 transition-opacity">
         <Aurora variant="login" />
         <div className="absolute inset-0 bg-gradient-to-t from-bg-base dark:from-[#0A0514] via-transparent to-transparent" />
       </div>
 
-      {/* Top Bar */}
+      {/* Top Bar (Glassmorphism) */}
       <header className="fixed top-0 inset-x-0 z-40 flex items-center justify-between px-4 sm:px-6 py-4 sm:py-6 pointer-events-none">
-        <div className="flex items-center gap-3 pointer-events-auto cursor-pointer" onClick={() => setPage('dashboard')}>
-          <Logo className="h-8 w-8 sm:h-10 sm:w-10" />
-          <div>
-            <p className="font-display text-base sm:text-lg font-bold leading-none">WYNX</p>
-            <p className="text-[10px] sm:text-xs text-text-muted dark:text-white/50 truncate max-w-[100px] sm:max-w-none">{company?.name}</p>
+        
+        {/* Pílula do Logo */}
+        <div 
+          className={`flex items-center gap-3 pointer-events-auto cursor-pointer px-4 py-2 rounded-2xl transition-transform hover:scale-[1.02] ${glassClasses}`}
+          onClick={() => setPage(isSuperAdminNoCompany ? 'super-admin' as any : 'dashboard')}
+        >
+          <Logo className="h-6 w-6 sm:h-8 sm:w-8 shrink-0 drop-shadow-md" />
+          <div className="min-w-0">
+<p className="font-display text-sm sm:text-base font-bold leading-none">{user?.name || 'Carregando...'}</p>            <p className="text-[10px] sm:text-xs text-text-muted dark:text-white/70 truncate max-w-[80px] sm:max-w-[150px]">
+              {isSuperAdminNoCompany ? 'Master Control' : company?.name}
+            </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 sm:gap-4 pointer-events-auto">
-          <button onClick={() => setSearchOpen(true)} className="flex items-center gap-2 rounded-full border border-border-subtle dark:border-white/10 bg-bg-surface/50 dark:bg-white/5 px-3 sm:px-4 py-2 text-sm text-text-muted dark:text-white/50 backdrop-blur-md transition hover:bg-black/5 dark:hover:bg-white/10">
+        {/* Pílula de Ações */}
+        <div className={`flex items-center gap-2 pointer-events-auto p-1.5 rounded-2xl ${glassClasses}`}>
+          <button onClick={() => setSearchOpen(true)} className="flex items-center gap-2 rounded-xl px-2 sm:px-3 py-1.5 text-sm text-text-muted dark:text-white/70 transition hover:bg-black/5 dark:hover:bg-white/10">
             <Search className="h-4 w-4" />
-            <span className="hidden sm:inline">Buscar no sistema...</span>
+            <span className="hidden sm:inline">Buscar...</span>
           </button>
+          <div className="w-px h-6 bg-black/10 dark:bg-white/10"></div>
           <ThemeToggle />
-          <button onClick={() => setMenuOpen(!menuOpen)} className="h-8 w-8 sm:h-10 sm:w-10 overflow-hidden rounded-full border border-border-subtle dark:border-white/20 bg-brand-violet/30 flex items-center justify-center text-sm font-bold hover:scale-105 transition">
+          <button onClick={() => setMenuOpen(!menuOpen)} className="h-8 w-8 sm:h-9 sm:w-9 shrink-0 overflow-hidden rounded-xl bg-brand-violet/60 flex items-center justify-center text-sm font-bold text-white hover:scale-105 transition border border-white/20 dark:border-white/10 shadow-inner">
             {user?.name.charAt(0)}
           </button>
         </div>
@@ -236,46 +255,69 @@ function Shell() {
       {/* Menu do Usuário */}
       <AnimatePresence>
         {menuOpen && (
-          <motion.div initial={{ opacity: 0, y: -10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="fixed top-16 sm:top-20 right-4 sm:right-6 z-50 w-56 rounded-2xl border border-border-subtle dark:border-white/10 bg-bg-surface/95 dark:bg-[#16142E]/95 p-2 shadow-2xl backdrop-blur-xl">
-            <button onClick={() => { setPage('perfil'); setMenuOpen(false) }} className="w-full text-left flex items-center gap-3 rounded-xl px-4 py-3 text-sm hover:bg-black/5 dark:hover:bg-white/10 transition"><Users className="h-4 w-4" /> Meu Perfil</button>
-            <button onClick={() => { setPage('assinatura'); setMenuOpen(false) }} className="w-full text-left flex items-center gap-3 rounded-xl px-4 py-3 text-sm hover:bg-black/5 dark:hover:bg-white/10 transition"><Sparkles className="h-4 w-4" /> Assinatura</button>
-            <div className="my-1 h-px bg-border-subtle dark:bg-white/10" />
+          <motion.div initial={{ opacity: 0, y: -10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className={`fixed top-20 sm:top-24 right-4 sm:right-6 z-[1000] w-56 rounded-2xl p-2 ${glassClasses}`}>
+            {user?.isSuperAdmin && (
+              <>
+                <button onClick={() => { setPage('super-admin' as any); setMenuOpen(false) }} className="w-full text-left flex items-center gap-3 rounded-xl px-4 py-3 text-sm text-accent hover:bg-black/5 dark:hover:bg-white/10 transition font-bold">
+                  <Crown className="h-4 w-4" /> Master Control
+                </button>
+                <div className="my-1 h-px bg-black/10 dark:bg-white/10" />
+              </>
+            )}
+            {!isSuperAdminNoCompany && (
+              <>
+                <button onClick={() => { setPage('perfil'); setMenuOpen(false) }} className="w-full text-left flex items-center gap-3 rounded-xl px-4 py-3 text-sm hover:bg-black/5 dark:hover:bg-white/10 transition"><Users className="h-4 w-4" /> Meu Perfil</button>
+                <button onClick={() => { setPage('assinatura'); setMenuOpen(false) }} className="w-full text-left flex items-center gap-3 rounded-xl px-4 py-3 text-sm hover:bg-black/5 dark:hover:bg-white/10 transition"><Sparkles className="h-4 w-4" /> Assinatura</button>
+              </>
+            )}
+            <div className="my-1 h-px bg-black/10 dark:bg-white/10" />
             <button onClick={logout} className="w-full text-left flex items-center gap-3 rounded-xl px-4 py-3 text-sm text-danger hover:bg-danger/10 transition"><LogOut className="h-4 w-4" /> Sair do sistema</button>
           </motion.div>
         )}
       </AnimatePresence>
 
       {/* Área de Conteúdo */}
-      <main className="relative z-10 mx-auto max-w-7xl px-4 pt-24 sm:pt-28 pb-32 sm:px-6 h-screen overflow-y-auto overflow-x-hidden [&::-webkit-scrollbar]:hidden">
+      <main className="relative z-10 mx-auto max-w-7xl px-4 pt-32 pb-40 sm:pt-36 sm:px-6 h-screen overflow-y-auto overflow-x-hidden [&::-webkit-scrollbar]:hidden">
         <AnimatePresence mode="wait">
-          <motion.div key={page} initial={{ opacity: 0, y: 20, filter: 'blur(4px)' }} animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }} exit={{ opacity: 0, y: -20, filter: 'blur(4px)' }} transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}>
-            {page === 'dashboard' && <Dashboard q={q} go={setPage} />}
-            {page === 'produtos' && <Products q={q} />}
-            {page === 'estoque' && <Stock q={q} />}
-            {page === 'relatorios' && <Reports q={q} />}
-            {page === 'historico' && <History q={q} />}
-            {page === 'equipe' && <Team q={q} />}
-            {page === 'configuracoes' && <Settings />}
-            {page === 'perfil' && <Profile />}
-            {page === 'assinatura' && <Billing />}
-            {page === 'insights' && <Insights q={q} />}
-            {page === 'alertas' && <Alerts q={q} />}
+          <motion.div key={page} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.3 }} className="w-full h-full">
+            {isSuperAdminNoCompany ? (
+              <SuperAdmin />
+            ) : (
+              <>
+                {page === 'dashboard' && <Dashboard q={q} go={setPage} />}
+                {page === 'produtos' && <Products q={q} />}
+                {page === 'estoque' && <Stock q={q} />}
+                {page === 'relatorios' && <Reports q={q} />}
+                {page === 'historico' && <History q={q} />}
+                {page === 'equipe' && <Team q={q} />}
+                {page === 'configuracoes' && <Settings />}
+                {page === 'perfil' && <Profile />}
+                {page === 'assinatura' && <Billing />}
+                {page === 'insights' && <Insights q={q} />}
+                {page === 'alertas' && <Alerts q={q} />}
+                {(page as string) === 'super-admin' && <SuperAdmin />}
+              </>
+            )}
           </motion.div>
         </AnimatePresence>
       </main>
 
-      {/* Dock de Navegação (Com scroll no mobile) */}
-      <div className="fixed bottom-4 sm:bottom-6 inset-x-0 z-50 flex justify-center pointer-events-none px-2">
-        <motion.nav initial={{ y: 50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="pointer-events-auto flex items-center gap-1 rounded-2xl border border-border-subtle dark:border-white/10 bg-bg-surface/80 dark:bg-[#16142E]/80 p-1.5 sm:p-2 shadow-2xl backdrop-blur-2xl overflow-x-auto max-w-full [&::-webkit-scrollbar]:hidden">
-          {DOCK_ITEMS.map((item) => {
+      {/* Dock de Navegação (Vidro Ultra Realista) */}
+      <div className="fixed bottom-4 sm:bottom-6 inset-x-0 z-[999] flex justify-center pointer-events-none px-4">
+        <motion.nav 
+          initial={{ y: 50, opacity: 0 }} 
+          animate={{ y: 0, opacity: 1 }} 
+          className={`pointer-events-auto flex w-full max-w-lg sm:w-max items-center justify-between sm:justify-start gap-1 sm:gap-2 rounded-[28px] p-2 ${glassClasses}`}
+        >
+          {visibleDockItems.map((item) => {
             const Icon = item.icon
             const isActive = page === item.id
             return (
-              <button key={item.id} onClick={() => setPage(item.id)} className={`group relative flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 flex-col items-center justify-center rounded-xl transition-all duration-300 ${isActive ? 'bg-black/5 dark:bg-white/10 text-brand-pink' : 'text-text-muted dark:text-white/60 hover:bg-black/5 dark:hover:bg-white/5 hover:text-text-primary dark:hover:text-white'}`}>
-                <Icon className={`h-5 w-5 transition-transform duration-300 ${isActive ? 'scale-110' : 'group-hover:scale-110'}`} />
-                <span className="absolute -top-10 scale-0 rounded bg-black dark:bg-white px-2 py-1 text-[10px] font-bold text-white dark:text-black opacity-0 transition-all group-hover:scale-100 group-hover:opacity-100">{item.label}</span>
-                {item.id === 'estoque' && unread > 0 && <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-danger ring-2 ring-bg-surface dark:ring-[#16142E]"></span>}
-                {isActive && <motion.div layoutId="dock-indicator" className="absolute -bottom-0.5 h-1 w-4 rounded-full bg-brand-pink" />}
+              <button key={item.id} onClick={() => setPage(item.id)} className={`group relative flex h-11 w-11 sm:h-12 sm:w-12 shrink-0 flex-col items-center justify-center rounded-[20px] transition-all duration-300 ${isActive ? 'bg-white/70 dark:bg-white/20 text-brand-pink shadow-[0_2px_8px_rgba(0,0,0,0.1),inset_0_1px_1px_rgba(255,255,255,0.8)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.2)] border border-white/60 dark:border-white/20' : 'text-text-muted dark:text-white/60 hover:bg-white/40 dark:hover:bg-white/10 hover:text-text-primary dark:hover:text-white'}`}>
+                <Icon className={`h-5 w-5 transition-transform duration-300 ${isActive ? 'scale-110 drop-shadow-md' : 'group-hover:scale-110'}`} />
+                <span className="absolute -top-10 scale-0 rounded-lg bg-black/80 dark:bg-white/90 px-2.5 py-1.5 text-[10px] font-bold text-white dark:text-black opacity-0 transition-all group-hover:scale-100 group-hover:opacity-100 whitespace-nowrap shadow-lg backdrop-blur-md">{item.label}</span>
+                {item.id === 'estoque' && unread > 0 && <span className="absolute top-2 right-2 h-2.5 w-2.5 rounded-full bg-danger ring-2 ring-white/50 dark:ring-black/50"></span>}
+                {isActive && <motion.div layoutId="dock-indicator" className="absolute -bottom-1 h-1 w-5 rounded-full bg-brand-pink shadow-[0_0_10px_rgba(249,168,212,0.8)]" />}
               </button>
             )
           })}
@@ -285,13 +327,13 @@ function Shell() {
       {/* Busca Global */}
       <AnimatePresence>
         {searchOpen && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[60] flex items-start justify-center bg-black/60 pt-24 sm:pt-32 px-4 backdrop-blur-sm" onClick={() => setSearchOpen(false)}>
-            <motion.div initial={{ scale: 0.95, y: -20 }} animate={{ scale: 1, y: 0 }} className="w-full max-w-xl overflow-hidden rounded-2xl border border-border-subtle dark:border-white/10 bg-bg-surface dark:bg-[#16142E] shadow-2xl" onClick={(e) => e.stopPropagation()}>
-              <div className="flex items-center border-b border-border-subtle dark:border-white/10 px-4">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[1000] flex items-start justify-center bg-black/40 pt-32 px-4 backdrop-blur-md" onClick={() => setSearchOpen(false)}>
+            <motion.div initial={{ scale: 0.95, y: -20 }} animate={{ scale: 1, y: 0 }} className={`w-full max-w-xl overflow-hidden rounded-[24px] ${glassClasses}`} onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center border-b border-white/20 dark:border-white/10 px-4">
                 <Search className="h-5 w-5 text-text-muted dark:text-white/40" />
                 <input autoFocus className="w-full bg-transparent p-4 text-text-primary dark:text-white placeholder-text-muted dark:placeholder-white/30 outline-none" placeholder="O que você procura?" value={q} onChange={(e) => setQ(e.target.value)} />
               </div>
-              <div className="p-4 text-center text-sm text-text-muted dark:text-white/40">Pressione <kbd className="rounded bg-black/5 dark:bg-white/10 px-1">Esc</kbd> para fechar.</div>
+              <div className="p-4 text-center text-sm text-text-muted dark:text-white/40">Pressione <kbd className="rounded bg-black/10 dark:bg-white/10 px-1">Esc</kbd> para fechar.</div>
             </motion.div>
           </motion.div>
         )}
@@ -593,7 +635,7 @@ function Reports({ q }: { q: string }) {
 }
 
 /* ============================================================
-   DEMAIS TELAS (Ajustes de Cor)
+   DEMAIS TELAS
    ============================================================ */
 function Insights({ q }: { q: string }) {
   const { insights } = useSession()
@@ -699,14 +741,10 @@ function Team({ q }: { q: string }) {
     } else if (data.status === 'error') {
       setMsg({ type: 'error', text: data.message })
     } else {
-      // Sucesso! Pode ter sido 'added' (direto) ou 'invited' (pendente)
       setMsg({ type: 'success', text: data.message })
       setEmail('')
-      
-      // Se foi adicionado direto, precisamos recarregar a lista de membros ativos
       if (data.status === 'added') {
-        // Usamos o reload do store para atualizar a tela toda
-        window.location.reload(); // Uma forma simples e garantida de puxar o novo membro
+        window.location.reload();
       } else {
         fetchInvites()
       }
@@ -774,7 +812,6 @@ function Team({ q }: { q: string }) {
           </button>
         </form>
 
-        {/* Lista de Convites Pendentes */}
         {invites.length > 0 && (
           <div className="rounded-3xl border border-warning/30 bg-warning/5 p-5 backdrop-blur-md space-y-3">
             <h4 className="text-sm font-bold text-warning flex items-center gap-2">
@@ -797,7 +834,6 @@ function Team({ q }: { q: string }) {
         )}
       </div>
 
-      {/* Coluna Direita: Membros Ativos */}
       <div className="lg:col-span-2 rounded-3xl border border-border-subtle dark:border-white/10 bg-bg-surface/50 dark:bg-white/5 p-6 backdrop-blur-md">
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-lg font-bold">Equipe Ativa</h3>
@@ -891,7 +927,6 @@ function Profile() {
         <p className="text-sm text-text-muted dark:text-white/50">Informações da conta.</p>
       </div>
       
-      {/* Card de Informações Básicas */}
       <div className="rounded-3xl border border-border-subtle dark:border-white/10 bg-bg-surface/50 dark:bg-white/5 p-6 space-y-4 backdrop-blur-md">
         <div className="flex flex-col gap-1.5">
           <label className="text-sm text-text-muted dark:text-white/50">E-mail</label>
@@ -910,7 +945,6 @@ function Profile() {
         </button>
       </div>
 
-      {/* ZONA DE PERIGO */}
       <div className="rounded-3xl border border-danger/30 bg-danger/5 p-6 space-y-4 backdrop-blur-md">
         <div>
           <h3 className="text-lg font-bold text-danger">Zona de Perigo</h3>
@@ -926,7 +960,6 @@ function Profile() {
         </button>
       </div>
 
-      {/* MODAL DE CONFIRMAÇÃO DE EXCLUSÃO */}
       <AnimatePresence>
         {showDeleteModal && (
           <SpatialModal title="Excluir conta permanentemente" onClose={() => !isDeleting && setShowDeleteModal(false)}>
@@ -977,42 +1010,75 @@ function Settings() {
   const { setCompany, newCategory } = useStore()
   const [form, setForm] = useState({ name: company?.name || '', segment: company?.segment || SEGMENTS[0], city: company?.city || '', state: company?.state || '' })
   const [cat, setCat] = useState('')
+
   return (
-    <div className="space-y-6">
-      <div><h1 className="text-2xl sm:text-3xl font-display font-bold">Ajustes</h1><p className="text-sm text-text-muted dark:text-white/50">Configurações.</p></div>
-      <div className="grid gap-6 md:grid-cols-2">
-        <form className="rounded-3xl border border-border-subtle dark:border-white/10 bg-bg-surface/50 dark:bg-white/5 p-5 sm:p-6 space-y-4 backdrop-blur-md" onSubmit={(e) => { e.preventDefault(); setCompany(form) }}>
-          <h3 className="text-lg font-bold mb-2">Empresa</h3>
-          <div className="flex flex-col gap-1.5"><label className="text-sm text-text-muted dark:text-white/50">Nome</label><input className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 outline-none" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
-          <div className="flex flex-col gap-1.5"><label className="text-sm text-text-muted dark:text-white/50">Segmento</label><select className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 outline-none" value={form.segment} onChange={(e) => setForm({ ...form, segment: e.target.value })}>{SEGMENTS.map((s) => <option key={s}>{s}</option>)}</select></div>
-          <div className="grid grid-cols-2 gap-2">
-            <div className="flex flex-col gap-1.5"><label className="text-sm text-text-muted dark:text-white/50">Cidade</label><input className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 outline-none" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} /></div>
-            <div className="flex flex-col gap-1.5"><label className="text-sm text-text-muted dark:text-white/50">UF</label><input className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 outline-none" value={form.state} onChange={(e) => setForm({ ...form, state: e.target.value })} /></div>
+    <div className="space-y-6 max-w-5xl mx-auto">
+      <div>
+        <h1 className="text-2xl sm:text-3xl font-display font-bold">Ajustes</h1>
+        <p className="text-sm text-text-muted dark:text-white/50">Configurações do sistema.</p>
+      </div>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+        
+        <form className="rounded-3xl border border-border-subtle dark:border-white/10 bg-white dark:bg-[#16142E] p-6 space-y-4 shadow-xl" onSubmit={(e) => { e.preventDefault(); setCompany(form) }}>
+          <h3 className="text-lg font-bold mb-2 flex items-center gap-2">
+            <Building2 className="h-5 w-5 text-brand-violet" /> Empresa
+          </h3>
+          
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-text-muted dark:text-white/50">Nome Fantasia</label>
+            <input className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 outline-none focus:border-brand-violet text-text-primary dark:text-white" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
           </div>
-          <button className="w-full rounded-xl bg-text-primary dark:bg-white py-3 font-bold text-white dark:text-black mt-2 hover:scale-[1.02] transition">Salvar</button>
+          
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-text-muted dark:text-white/50">Segmento</label>
+            <select className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 outline-none focus:border-brand-violet text-text-primary dark:text-white" value={form.segment} onChange={(e) => setForm({ ...form, segment: e.target.value })}>
+              {SEGMENTS.map((s) => <option key={s}>{s}</option>)}
+            </select>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-text-muted dark:text-white/50">Cidade</label>
+              <input className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 outline-none focus:border-brand-violet text-text-primary dark:text-white" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-text-muted dark:text-white/50">UF</label>
+              <input className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 outline-none focus:border-brand-violet text-text-primary dark:text-white" value={form.state} onChange={(e) => setForm({ ...form, state: e.target.value })} />
+            </div>
+          </div>
+          
+          <button className="w-full rounded-xl bg-brand-gradient py-3 font-bold text-white mt-4 hover:scale-[1.02] transition shadow-lg">Salvar Empresa</button>
         </form>
-        <div className="rounded-3xl border border-border-subtle dark:border-white/10 bg-bg-surface/50 dark:bg-white/5 p-5 sm:p-6 space-y-4 backdrop-blur-md">
-          <h3 className="text-lg font-bold mb-2">Categorias</h3>
-          <div className="flex flex-wrap gap-2">{categories.map((c) => <span key={c} className="rounded-full bg-brand-violet/20 px-3 py-1 text-sm text-brand-violet border border-brand-violet/30">{c}</span>)}</div>
-          <div className="flex gap-2 pt-2">
-            <input className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 outline-none" value={cat} onChange={(e) => setCat(e.target.value)} placeholder="Nova categoria" />
-            <button className="rounded-xl bg-brand-gradient px-4 font-bold text-white hover:scale-105 transition" onClick={() => { if (newCategory(cat)) setCat('') }}>Add</button>
+
+        <div className="rounded-3xl border border-border-subtle dark:border-white/10 bg-white dark:bg-[#16142E] p-6 space-y-4 shadow-xl">
+          <h3 className="text-lg font-bold mb-2 flex items-center gap-2">
+            <Layers className="h-5 w-5 text-brand-cyan" /> Categorias
+          </h3>
+          
+          <div className="flex flex-wrap gap-2 mb-4">
+            {categories.map((c) => (
+              <span key={c} className="rounded-full bg-brand-violet/20 border border-brand-violet/30 px-3 py-1 text-sm text-brand-violet font-medium">{c}</span>
+            ))}
+            {categories.length === 0 && <p className="text-sm text-text-muted">Nenhuma categoria criada.</p>}
+          </div>
+          
+          <div className="flex gap-2 pt-4 border-t border-border-subtle dark:border-white/10">
+            <input className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 outline-none focus:border-brand-violet text-text-primary dark:text-white" value={cat} onChange={(e) => setCat(e.target.value)} placeholder="Nova categoria..." />
+            <button type="button" className="rounded-xl bg-brand-gradient px-5 font-bold text-white hover:scale-105 transition shadow-lg" onClick={() => { if (newCategory(cat)) setCat('') }}>Add</button>
           </div>
         </div>
+
       </div>
     </div>
   )
 }
 
-/* ============================================================
-   CHECKOUT SIMULATION (Pagamento Falso)
-   ============================================================ */
 function CheckoutSimulation({ plan, onClose, onSuccess }: { plan: any, onClose: () => void, onSuccess: () => void }) {
   const [method, setMethod] = useState<'cartao' | 'pix'>('cartao')
   const [isProcessing, setIsProcessing] = useState(false)
   const [isSuccess, setIsSuccess] = useState(false)
 
-  // Máscaras simples para os inputs falsos
   const formatCard = (v: string) => v.replace(/\D/g, '').replace(/(.{4})/g, '$1 ').trim().slice(0, 19)
   const formatExpiry = (v: string) => v.replace(/\D/g, '').replace(/(.{2})/, '$1/').slice(0, 5)
 
@@ -1020,12 +1086,10 @@ function CheckoutSimulation({ plan, onClose, onSuccess }: { plan: any, onClose: 
     e.preventDefault()
     setIsProcessing(true)
     
-    // Simula a latência da API do gateway (2 segundos)
     setTimeout(() => {
       setIsProcessing(false)
       setIsSuccess(true)
       
-      // Espera mais 1.5s para o usuário ver a tela de sucesso, e então aplica o plano
       setTimeout(() => {
         onSuccess()
       }, 1500)
@@ -1033,14 +1097,13 @@ function CheckoutSimulation({ plan, onClose, onSuccess }: { plan: any, onClose: 
   }
 
   return createPortal(
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={!isProcessing && !isSuccess ? onClose : undefined} />
       
       <motion.div 
         initial={{ opacity: 0, y: 50, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 20, scale: 0.95 }}
-        className="relative w-full max-w-lg rounded-3xl border border-border-subtle dark:border-white/10 bg-bg-surface/95 dark:bg-[#16142E]/95 shadow-2xl overflow-hidden backdrop-blur-2xl"
+        className="relative w-full max-w-lg rounded-3xl border border-border-subtle dark:border-white/10 bg-white dark:bg-[#16142E] shadow-2xl overflow-hidden"
       >
-        {/* Header do Checkout */}
         <div className="flex items-center justify-between border-b border-border-subtle dark:border-white/10 px-6 py-4 bg-black/5 dark:bg-white/5">
           <div className="flex items-center gap-2">
             <Lock className="h-4 w-4 text-success" />
@@ -1063,10 +1126,10 @@ function CheckoutSimulation({ plan, onClose, onSuccess }: { plan: any, onClose: 
               </div>
 
               <div className="flex gap-2 p-1 bg-black/5 dark:bg-black/40 rounded-2xl mb-6">
-                <button onClick={() => setMethod('cartao')} className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium transition ${method === 'cartao' ? 'bg-bg-surface dark:bg-white text-text-primary dark:text-black shadow-md' : 'text-text-muted dark:text-white/60 hover:text-text-primary'}`}>
-                  <CreditCard className="h-4 w-4" /> Cartão de Crédito
+                <button onClick={() => setMethod('cartao')} className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium transition ${method === 'cartao' ? 'bg-white dark:bg-white text-text-primary dark:text-black shadow-md' : 'text-text-muted dark:text-white/60 hover:text-text-primary'}`}>
+                  <CreditCard className="h-4 w-4" /> Cartão
                 </button>
-                <button onClick={() => setMethod('pix')} className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium transition ${method === 'pix' ? 'bg-bg-surface dark:bg-white text-text-primary dark:text-black shadow-md' : 'text-text-muted dark:text-white/60 hover:text-text-primary'}`}>
+                <button onClick={() => setMethod('pix')} className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium transition ${method === 'pix' ? 'bg-white dark:bg-white text-text-primary dark:text-black shadow-md' : 'text-text-muted dark:text-white/60 hover:text-text-primary'}`}>
                   <QrCode className="h-4 w-4" /> Pix
                 </button>
               </div>
@@ -1076,43 +1139,39 @@ function CheckoutSimulation({ plan, onClose, onSuccess }: { plan: any, onClose: 
                   <div className="space-y-4">
                     <div className="flex flex-col gap-1.5">
                       <label className="text-xs font-medium text-text-muted dark:text-white/50 uppercase">Número do Cartão</label>
-                      <input required placeholder="0000 0000 0000 0000" className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-bg-base dark:bg-black/20 p-3 outline-none focus:border-brand-violet" onChange={(e) => e.target.value = formatCard(e.target.value)} />
+                      <input required placeholder="0000 0000 0000 0000" className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 outline-none focus:border-brand-violet" onChange={(e) => e.target.value = formatCard(e.target.value)} />
                     </div>
                     <div className="flex flex-col gap-1.5">
-                      <label className="text-xs font-medium text-text-muted dark:text-white/50 uppercase">Nome impresso no cartão</label>
-                      <input required placeholder="Como está no cartão" className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-bg-base dark:bg-black/20 p-3 outline-none focus:border-brand-violet uppercase" />
+                      <label className="text-xs font-medium text-text-muted dark:text-white/50 uppercase">Nome impresso</label>
+                      <input required placeholder="Como está no cartão" className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 outline-none focus:border-brand-violet uppercase" />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="flex flex-col gap-1.5">
                         <label className="text-xs font-medium text-text-muted dark:text-white/50 uppercase">Validade</label>
-                        <input required placeholder="MM/AA" className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-bg-base dark:bg-black/20 p-3 outline-none focus:border-brand-violet" onChange={(e) => e.target.value = formatExpiry(e.target.value)} />
+                        <input required placeholder="MM/AA" className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 outline-none focus:border-brand-violet" onChange={(e) => e.target.value = formatExpiry(e.target.value)} />
                       </div>
                       <div className="flex flex-col gap-1.5">
                         <label className="text-xs font-medium text-text-muted dark:text-white/50 uppercase">CVV</label>
-                        <input required type="password" placeholder="123" maxLength={4} className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-bg-base dark:bg-black/20 p-3 outline-none focus:border-brand-violet" />
+                        <input required type="password" placeholder="123" maxLength={4} className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 outline-none focus:border-brand-violet" />
                       </div>
                     </div>
                   </div>
                 ) : (
                   <div className="flex flex-col items-center justify-center py-6 space-y-4">
                     <div className="p-4 bg-white rounded-2xl shadow-lg border-4 border-brand-violet">
-                      {/* QR Code Falso (Gerado via CSS/SVG) */}
                       <svg width="120" height="120" viewBox="0 0 100 100" className="opacity-80">
                         <rect width="100" height="100" fill="white" />
                         <path d="M10 10h20v20H10zM70 10h20v20H70zM10 70h20v20H10zM40 10h10v10H40zM50 20h10v10H50zM30 40h10v10H30zM60 40h10v10H60zM40 60h10v10H40zM70 50h10v10H70zM20 50h10v10H20zM50 50h10v10H50zM80 50h10v10H80zM80 70h10v10H80zM50 80h10v10H50zM20 80h10v10H20z" fill="black" />
                         <path d="M15 15h10v10H15zM75 15h10v10H75zM15 75h10v10H15z" fill="#7C3AED" />
                       </svg>
                     </div>
-                    <p className="text-sm text-text-muted dark:text-white/60 text-center max-w-xs">Abra o app do seu banco e escaneie o código acima para pagar via Pix.</p>
+                    <p className="text-sm text-text-muted dark:text-white/60 text-center max-w-xs">Abra o app do seu banco e escaneie o código acima.</p>
                   </div>
                 )}
 
                 <button type="submit" className="w-full rounded-xl bg-brand-gradient py-4 font-bold text-white shadow-lg transition hover:scale-[1.02] mt-6 flex items-center justify-center gap-2">
-                  <ShieldCheck className="h-5 w-5" /> Confirmar Pagamento de {formatMoney(plan.price)}
+                  <ShieldCheck className="h-5 w-5" /> Confirmar Pagamento
                 </button>
-                <p className="text-center text-[10px] text-text-muted dark:text-white/40 mt-2 flex items-center justify-center gap-1">
-                  <Lock className="h-3 w-3" /> Ambiente criptografado e 100% seguro.
-                </p>
               </form>
             </motion.div>
           )}
@@ -1121,7 +1180,6 @@ function CheckoutSimulation({ plan, onClose, onSuccess }: { plan: any, onClose: 
             <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center justify-center py-16 space-y-4">
               <div className="h-12 w-12 animate-spin rounded-full border-4 border-brand-violet border-t-transparent" />
               <h3 className="text-lg font-bold">Processando pagamento...</h3>
-              <p className="text-sm text-text-muted dark:text-white/50">Aguarde enquanto validamos os dados com o banco.</p>
             </motion.div>
           )}
 
@@ -1131,13 +1189,285 @@ function CheckoutSimulation({ plan, onClose, onSuccess }: { plan: any, onClose: 
                 <CheckCircle2 className="h-20 w-20 text-success" />
               </motion.div>
               <h3 className="text-2xl font-display font-bold text-center">Pagamento Aprovado!</h3>
-              <p className="text-sm text-text-muted dark:text-white/50 text-center max-w-xs">Sua conta foi atualizada para o plano <strong className="text-text-primary dark:text-white">{plan.name}</strong>. Aproveite os novos recursos.</p>
+              <p className="text-sm text-text-muted dark:text-white/50 text-center max-w-xs">Sua conta foi atualizada para o plano <strong className="text-text-primary dark:text-white">{plan.name}</strong>.</p>
             </motion.div>
           )}
         </div>
       </motion.div>
     </div>,
     document.body
+  )
+}
+
+function SuperAdmin() {
+  const { user } = useSession()
+  const [companies, setCompanies] = useState<any[]>([])
+  const [logs, setLogs] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
+  const [filterPlan, setFilterPlan] = useState('todos')
+
+  const loadData = async () => {
+    setLoading(true)
+    const { data, logs } = await db.loadGlobalAdminData()
+    if (data) setCompanies(data)
+    if (logs) setLogs(logs)
+    setLoading(false)
+  }
+
+  useEffect(() => { loadData() }, [])
+
+  const handleAction = async (companyId: string, plan: string, action: 'cancel' | 'refund' | 'change') => {
+    if (!confirm(`Tem certeza que deseja ${action === 'cancel' ? 'cancelar' : 'reembolsar'} esta assinatura?`)) return
+    await db.adminUpdateCompanyPlan(companyId, plan, action)
+    await loadData()
+  }
+
+  const handleToggleStatus = async (companyId: string, currentStatus: string) => {
+    if (!confirm(`Deseja realmente ${currentStatus === 'active' ? 'suspender' : 'reativar'} o acesso desta empresa?`)) return
+    await db.toggleCompanyStatus(companyId, currentStatus, user?.email || '')
+    await loadData()
+  }
+
+  const handleImpersonate = async (companyId: string) => {
+    await db.impersonateCompany(companyId, user?.email || '')
+    alert('Ação registrada nos logs! Em um sistema real, você seria redirecionado para o painel do cliente.')
+  }
+
+  // --- Métricas e Filtros ---
+  const clientCompanies = companies.filter(c => c.ownerEmail !== 'suportewynx@gmail.com');
+  
+  const filteredCompanies = clientCompanies.filter(c => {
+    const matchSearch = c.name.toLowerCase().includes(search.toLowerCase()) || c.ownerEmail.toLowerCase().includes(search.toLowerCase());
+    const matchPlan = filterPlan === 'todos' || c.plan === filterPlan;
+    return matchSearch && matchPlan;
+  });
+
+  const activeCompanies = clientCompanies.filter(c => c.status === 'active');
+  
+  const totalMRR = activeCompanies.reduce((acc, c) => {
+    if (c.plan === 'starter') return acc + 149
+    if (c.plan === 'business') return acc + 499
+    if (c.plan === 'enterprise') return acc + 1299
+    return acc
+  }, 0)
+
+  // Dados para o Gráfico de Planos
+  const planDistribution = [
+    { name: 'Grátis', value: clientCompanies.filter(c => c.plan === 'gratuito').length, color: '#6B7280' },
+    { name: 'Starter', value: clientCompanies.filter(c => c.plan === 'starter').length, color: '#06B6D4' },
+    { name: 'Business', value: clientCompanies.filter(c => c.plan === 'business').length, color: '#C4B5FD' },
+    { name: 'Enterprise', value: clientCompanies.filter(c => c.plan === 'enterprise').length, color: '#F5B942' },
+  ].filter(p => p.value > 0);
+
+  // Dados fake para o gráfico de crescimento
+  const growthData = [
+    { mes: 'Jul', mrr: totalMRR * 0.4 },
+    { mes: 'Ago', mrr: totalMRR * 0.6 },
+    { mes: 'Set', mrr: totalMRR * 0.7 },
+    { mes: 'Out', mrr: totalMRR * 0.9 },
+    { mes: 'Nov', mrr: totalMRR * 0.95 },
+    { mes: 'Dez', mrr: totalMRR },
+  ];
+
+  return (
+    <div className="space-y-6 max-w-7xl mx-auto pb-24">
+      
+      {/* Header do Adm Supremo */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-3xl border border-accent/20 bg-accent/5 p-6 backdrop-blur-md">
+        <div className="flex items-center gap-4">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-accent/20 text-accent shadow-[0_0_30px_rgba(245,185,66,0.3)]">
+            <Crown className="h-8 w-8" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-display font-black text-accent">Master Control</h1>
+            <p className="text-sm text-text-muted dark:text-white/60">Gestão global de assinaturas e clientes.</p>
+          </div>
+        </div>
+      </div>
+
+      {/* KPIs Globais */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="rounded-3xl border border-border-subtle dark:border-white/10 bg-bg-surface/50 dark:bg-white/5 p-6 backdrop-blur-md">
+          <p className="text-xs font-bold uppercase tracking-wider text-text-muted dark:text-white/50">Receita (MRR)</p>
+          <p className="mt-2 text-3xl font-black text-success">{formatMoney(totalMRR)}</p>
+        </div>
+        <div className="rounded-3xl border border-border-subtle dark:border-white/10 bg-bg-surface/50 dark:bg-white/5 p-6 backdrop-blur-md">
+          <p className="text-xs font-bold uppercase tracking-wider text-text-muted dark:text-white/50">Empresas Ativas</p>
+          <p className="mt-2 text-3xl font-black text-brand-violet">{activeCompanies.length}</p>
+        </div>
+        <div className="rounded-3xl border border-border-subtle dark:border-white/10 bg-bg-surface/50 dark:bg-white/5 p-6 backdrop-blur-md">
+          <p className="text-xs font-bold uppercase tracking-wider text-text-muted dark:text-white/50">Contas Suspensas</p>
+          <p className="mt-2 text-3xl font-black text-danger">{clientCompanies.length - activeCompanies.length}</p>
+        </div>
+        <div className="rounded-3xl border border-border-subtle dark:border-white/10 bg-bg-surface/50 dark:bg-white/5 p-6 backdrop-blur-md">
+          <p className="text-xs font-bold uppercase tracking-wider text-text-muted dark:text-white/50">Total de Usuários</p>
+          <p className="mt-2 text-3xl font-black text-brand-cyan">{clientCompanies.reduce((acc, c) => acc + c.membersCount, 0)}</p>
+        </div>
+      </div>
+
+      {/* Gráficos */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2 rounded-3xl border border-border-subtle dark:border-white/10 bg-bg-surface/50 dark:bg-white/5 p-6 backdrop-blur-md">
+          <h3 className="text-sm font-bold uppercase tracking-wider text-text-muted dark:text-white/50 mb-6">Evolução de Receita (MRR)</h3>
+          <div className="h-56 w-full">
+            <ResponsiveContainer>
+              <BarChart data={growthData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="currentColor" opacity={0.1} />
+                <XAxis dataKey="mes" fontSize={12} stroke="currentColor" opacity={0.5} />
+                <YAxis fontSize={12} stroke="currentColor" opacity={0.5} tickFormatter={(v) => `R$ ${v}`} />
+                <Tooltip 
+                  formatter={(value: number) => formatMoney(value)}
+                  contentStyle={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border-subtle)', borderRadius: '12px', color: 'var(--color-text-primary)' }} 
+                />
+                <Bar dataKey="mrr" fill="#C4B5FD" radius={[6, 6, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div className="rounded-3xl border border-border-subtle dark:border-white/10 bg-bg-surface/50 dark:bg-white/5 p-6 backdrop-blur-md">
+          <h3 className="text-sm font-bold uppercase tracking-wider text-text-muted dark:text-white/50 mb-6">Distribuição de Planos</h3>
+          <div className="h-56 w-full flex items-center justify-center">
+            <ResponsiveContainer>
+              <PieChart>
+                <Pie data={planDistribution} dataKey="value" nameKey="name" innerRadius={50} outerRadius={80} stroke="none" paddingAngle={5}>
+                  {planDistribution.map((entry, index) => (
+                    <Cell key={index} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip contentStyle={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border-subtle)', borderRadius: '12px', color: 'var(--color-text-primary)' }} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="flex flex-wrap justify-center gap-3 mt-4">
+            {planDistribution.map(p => (
+              <div key={p.name} className="flex items-center gap-1.5 text-xs text-text-muted dark:text-white/60">
+                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: p.color }}></span> {p.name} ({p.value})
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Tabela de Clientes e Ações */}
+      <div className="rounded-3xl border border-border-subtle dark:border-white/10 bg-bg-surface/50 dark:bg-white/5 p-6 backdrop-blur-md overflow-hidden">
+        <div className="flex flex-col sm:flex-row items-center justify-between mb-6 gap-4">
+          <h3 className="text-lg font-bold flex items-center gap-2">
+            <Building2 className="h-5 w-5 text-brand-pink" /> Gestão de Clientes
+          </h3>
+          
+          {/* Filtros e Busca */}
+          <div className="flex flex-col sm:flex-row w-full sm:w-auto gap-2">
+            <input 
+              type="text" 
+              placeholder="Buscar empresa ou e-mail..." 
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full sm:w-64 rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/40 px-4 py-2 text-sm outline-none focus:border-brand-violet"
+            />
+            <select 
+              value={filterPlan} 
+              onChange={(e) => setFilterPlan(e.target.value)}
+              className="rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/40 px-4 py-2 text-sm outline-none focus:border-brand-violet"
+            >
+              <option value="todos">Todos os Planos</option>
+              <option value="gratuito">Gratuito</option>
+              <option value="starter">Starter</option>
+              <option value="business">Business</option>
+              <option value="enterprise">Enterprise</option>
+            </select>
+          </div>
+        </div>
+        
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm text-left whitespace-nowrap">
+            <thead className="text-xs uppercase bg-black/5 dark:bg-white/5 text-text-muted dark:text-white/50">
+              <tr>
+                <th className="px-4 py-3 rounded-l-xl">Empresa / Dono</th>
+                <th className="px-4 py-3">Plano</th>
+                <th className="px-4 py-3">Equipe</th>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Criada em</th>
+                <th className="px-4 py-3 text-right rounded-r-xl">Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr><td colSpan={6} className="text-center py-8">Carregando dados globais...</td></tr>
+              ) : filteredCompanies.length === 0 ? (
+                <tr><td colSpan={6} className="text-center py-8 text-text-muted">Nenhuma empresa encontrada.</td></tr>
+              ) : filteredCompanies.map((c) => (
+                <tr key={c.id} className="border-b border-border-subtle dark:border-white/5 last:border-0 hover:bg-black/5 dark:hover:bg-white/5 transition">
+                  <td className="px-4 py-4">
+                    <p className="font-bold text-text-primary dark:text-white">{c.name}</p>
+                    <p className="text-xs text-text-muted dark:text-white/50">{c.ownerName} ({c.ownerEmail})</p>
+                  </td>
+                  <td className="px-4 py-4">
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-bold uppercase ${
+                      c.plan === 'gratuito' ? 'bg-black/10 text-text-muted' :
+                      c.plan === 'starter' ? 'bg-brand-cyan/20 text-brand-cyan' :
+                      c.plan === 'business' ? 'bg-brand-violet/20 text-brand-violet' : 'bg-accent/20 text-accent'
+                    }`}>
+                      {c.plan}
+                    </span>
+                  </td>
+                  <td className="px-4 py-4 text-text-secondary dark:text-white/70">{c.membersCount} usuários</td>
+                  <td className="px-4 py-4">
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-bold uppercase flex items-center gap-1 w-max ${c.status === 'active' ? 'bg-success/10 text-success' : 'bg-danger/10 text-danger'}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${c.status === 'active' ? 'bg-success' : 'bg-danger'}`}></span>
+                      {c.status === 'active' ? 'Ativa' : 'Suspensa'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-4 text-text-muted dark:text-white/50">{new Date(c.created_at).toLocaleDateString('pt-BR')}</td>
+                  <td className="px-4 py-4 text-right flex items-center justify-end gap-2">
+                    {/* Ação: Impersonate */}
+                    <button onClick={() => handleImpersonate(c.id)} className="p-2 rounded-lg bg-brand-cyan/10 text-brand-cyan hover:bg-brand-cyan/20 transition" title="Entrar como Cliente">
+                      <LogIn className="h-4 w-4" />
+                    </button>
+                    
+                    {/* Ação: Suspender/Reativar */}
+                    <button onClick={() => handleToggleStatus(c.id, c.status)} className={`p-2 rounded-lg transition ${c.status === 'active' ? 'bg-danger/10 text-danger hover:bg-danger/20' : 'bg-success/10 text-success hover:bg-success/20'}`} title={c.status === 'active' ? 'Suspender Conta' : 'Reativar Conta'}>
+                      {c.status === 'active' ? <Ban className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
+                    </button>
+
+                    {/* Ações Financeiras */}
+                    {c.plan !== 'gratuito' && (
+                      <>
+                        <button onClick={() => handleAction(c.id, c.plan, 'refund')} className="p-2 rounded-lg bg-warning/10 text-warning hover:bg-warning/20 transition" title="Reembolsar">
+                          <RefreshCcw className="h-4 w-4" />
+                        </button>
+                      </>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Logs do Sistema */}
+      <div className="rounded-3xl border border-border-subtle dark:border-white/10 bg-bg-surface/50 dark:bg-white/5 p-6 backdrop-blur-md">
+        <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+          <FileText className="h-5 w-5 text-brand-cyan" /> Últimas Ações Administrativas
+        </h3>
+        <div className="space-y-3">
+          {logs.length === 0 ? (
+            <p className="text-sm text-text-muted">Nenhuma ação registrada.</p>
+          ) : logs.map(log => (
+            <div key={log.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 p-3 rounded-xl border border-border-subtle dark:border-white/5 bg-black/5 dark:bg-black/20 text-sm">
+              <div>
+                <span className="font-bold text-text-primary dark:text-white">{log.action}</span>
+                <span className="text-text-muted dark:text-white/50 ml-2">{log.details}</span>
+              </div>
+              <span className="text-xs text-text-muted dark:text-white/40">{new Date(log.created_at).toLocaleString('pt-BR')}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+    </div>
   )
 }
 

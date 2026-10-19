@@ -58,6 +58,7 @@ export async function hashPassword(password: string) {
 }
 
 export async function verifyPassword(user: User, password: string) {
+  if (!user.passwordSalt || !user.passwordHash) return false // <-- Adicione esta linha
   const hash = await deriveHash(password, user.passwordSalt)
   return hash === user.passwordHash
 }
