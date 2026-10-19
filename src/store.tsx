@@ -388,7 +388,8 @@ export function useSession() {
     audit: company ? state.audit.filter((a) => a.companyId === company.id) : [],
     team: company ? state.users.filter((u) => u.companyId === company.id) : [],
     categories: company ? state.categories[company.id] || [] : [],
-    suppliers: company ? (state.suppliers || []).filter((s) => s.companyId === company.id) : [], // <-- ADICIONADO AQUI
+    suppliers: company ? (state.suppliers || []).filter((s) => s.companyId === company.id) : [],
+    stores: company ? (state.stores || []).filter((s) => s.companyId === company.id) : [], // <-- ADICIONADO AQUI
     insights: company ? generateInsights(state) : [],
     kpis: company ? kpis(state) : { products: 0, units: 0, low: 0, value: 0, sales: 0, revenue: 0, idle: 0, movements: 0 }
   }

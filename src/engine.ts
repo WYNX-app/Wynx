@@ -73,7 +73,9 @@ export function emptyState(): AppState {
     notifications: [],
     audit: [],
     categories: {},
-    sessionUserId: null
+    sessionUserId: null,
+     suppliers: [],
+      stores: []
   }
 }
 
@@ -734,3 +736,4 @@ export async function seedDemo(): Promise<AppState> {
   )
   return state
 }
+

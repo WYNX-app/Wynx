@@ -17,6 +17,7 @@ export type PageId =
   | 'produtos'
   | 'estoque'
   | 'fornecedores'
+  | 'lojas'
   | 'relatorios'
   | 'insights'
   | 'alertas'
@@ -68,6 +69,7 @@ export interface Product {
   createdAt: string
   updatedAt: string
   supplierId?: string
+  storeId?: string
 }
 
 export interface Movement {
@@ -125,6 +127,7 @@ export interface AppState {
   categories: Record<string, string[]>
   sessionUserId: string | null,
   suppliers: Supplier[]
+  stores: Store[]
 }
 
 export const PLANS: Record<PlanId, { name: string; price: number; products: number; users: number; ai: string; extras: string }> = {
@@ -173,3 +176,11 @@ export const SEGMENTS = [
   'Oficina / serviços',
   'Outro'
 ]
+
+export interface Store {
+  id: string
+  companyId: string
+  name: string
+  type: string
+  createdAt: string
+}
