@@ -338,3 +338,15 @@ export async function changePlanDb(companyId: string, plan: string) {
   if (error) return { error: error.message };
   return {};
 }
+
+export async function removeMemberDb(userId: string) {
+  // Em vez de procurar pelo ID da linha da tabela members, 
+  // procuramos pelo user_id (que é o ID que o frontend tem em mãos)
+  const { error } = await supabase.from("members").delete().eq("user_id", userId);
+  
+  if (error) {
+    console.error("Erro ao remover membro:", error);
+    return { error: error.message };
+  }
+  return {};
+}

@@ -26,6 +26,7 @@ type Store = {
   move: (input: { productId: string; type: MovementType; qty: number; note: string }) => boolean
   invite: (input: { name: string; email: string; role: Role; password: string }) => Promise<boolean>
   setRole: (userId: string, role: Role) => boolean
+  removeMember: (memberId: string) => boolean // <-- ADICIONADO AQUI
   setProfile: (name: string) => boolean
   setCompany: (patch: { name?: string; segment?: string; city?: string; state?: string }) => boolean
   newCategory: (name: string) => boolean
@@ -35,6 +36,7 @@ type Store = {
   exportBackup: () => Promise<void>
   importBackup: () => Promise<void>
   resetDemo: () => Promise<void>
+  deleteAccount: () => Promise<boolean>
 }
 
 const Ctx = createContext<Store | null>(null)
@@ -203,14 +205,33 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     },
 
     invite: async () => {
-      setError('Convite por e-mail ainda não está disponível nesta versão.')
       return false
     },
 
-    setRole: () => {
-      setError('Alteração de papéis ainda não implementada.')
-      return false
+    setRole: (userId, role) => {
+      const user = currentUser(state)
+      if (!user) return false
+      ;(async () => {
+        const r = await db.updateMemberRole(userId, role)
+        if (r.error) { setError(r.error); return }
+        await reload(user.id)
+      })()
+      return true
     },
+
+    // --- NOVA FUNÇÃO AQUI ---
+    removeMember: (memberId) => {
+      const user = currentUser(state)
+      if (!user) return false
+      ;(async () => {
+        // @ts-ignore (Caso o TypeScript reclame que removeMemberDb não existe ainda no db)
+        const r = await db.removeMemberDb(memberId)
+        if (r.error) { setError(r.error); return }
+        await reload(user.id)
+      })()
+      return true
+    },
+    // ------------------------
 
     setProfile: (name) => {
       const user = currentUser(state)
@@ -297,6 +318,23 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     resetDemo: async () => {
       setError('Modo demo desativado na versão Supabase.')
+    },
+
+    deleteAccount: async () => {
+      try {
+        const { error } = await supabase.functions.invoke('delete-account')
+        if (error) { 
+          setError(error.message)
+          return false 
+        }
+        
+        await supabase.auth.signOut()
+        setState(emptyState())
+        return true
+      } catch (err: any) {
+        setError(err.message)
+        return false
+      }
     },
   }), [state, ready, error])
 

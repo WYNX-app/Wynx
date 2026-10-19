@@ -1,4 +1,5 @@
 import { PasswordField } from './components/PasswordField'
+import { supabase } from './lib/supabase/client'
 import { 
   X, LayoutDashboard, Package, Layers, History as HistoryIcon,
   FileText, Users, Settings as SettingsIcon, LogOut, Search, Sparkles, Plus, Minus, Scan,
@@ -105,6 +106,7 @@ function Splash() {
 function Auth() {
   const { login, register, error, setError } = useStore()
   const [mode, setMode] = useState<'login' | 'cadastro'>('login')
+  const [isInvited, setIsInvited] = useState(false) // Novo estado
   const [form, setForm] = useState({ name: '', email: '', password: '', company: '', segment: SEGMENTS[0], city: '', stateUf: 'PI' })
 
   const submit = async (e: FormEvent) => {
@@ -131,7 +133,7 @@ function Auth() {
 
         <div className="mb-6">
           <h2 className="text-xl font-semibold text-text-primary dark:text-white">{mode === 'login' ? 'Bem-vindo de volta.' : 'Comece agora.'}</h2>
-          <p className="mt-1 text-sm text-text-muted dark:text-white/50">{mode === 'login' ? 'O estoque não vai se controlar sozinho.' : 'Crie sua conta e domine seu negócio.'}</p>
+          <p className="mt-1 text-sm text-text-muted dark:text-white/50">{mode === 'login' ? 'O estoque não vai se controlar sozinho.' : 'Crie sua conta ou aceite um convite.'}</p>
         </div>
 
         <div className="mb-6 flex rounded-full bg-black/5 dark:bg-black/40 p-1">
@@ -145,8 +147,22 @@ function Auth() {
         <form className="space-y-4" onSubmit={submit}>
           {mode === 'cadastro' && (
             <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="space-y-4">
-              <input className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 text-text-primary dark:text-white outline-none focus:border-brand-violet" placeholder="Seu nome" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
-              <input className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 text-text-primary dark:text-white outline-none focus:border-brand-violet" placeholder="Nome da empresa" value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} required />
+              <input className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 text-text-primary dark:text-white outline-none focus:border-brand-violet" placeholder="Seu nome completo" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
+              
+              {/* Toggle para quem foi convidado */}
+              <div className="flex items-center gap-2 py-2">
+                <input type="checkbox" id="isInvited" checked={isInvited} onChange={(e) => setIsInvited(e.target.checked)} className="h-4 w-4 rounded border-border-subtle text-brand-violet focus:ring-brand-violet" />
+                <label htmlFor="isInvited" className="text-sm font-medium text-text-secondary dark:text-white/70 cursor-pointer">
+                  Fui convidado por uma empresa
+                </label>
+              </div>
+
+              {/* Só pede o nome da empresa se NÃO for convidado */}
+              {!isInvited && (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
+                  <input className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 text-text-primary dark:text-white outline-none focus:border-brand-violet" placeholder="Nome da sua empresa" value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} required />
+                </motion.div>
+              )}
             </motion.div>
           )}
           <input className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 text-text-primary dark:text-white outline-none focus:border-brand-violet" type="email" placeholder="E-mail" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required />
@@ -155,7 +171,7 @@ function Auth() {
           {error && <div className="rounded-xl border border-danger/30 bg-danger/10 px-4 py-2 text-sm text-danger">{error}</div>}
 
           <button className="mt-2 w-full rounded-xl bg-brand-gradient py-3 font-bold text-white shadow-[0_0_20px_rgba(196,181,253,0.4)] transition hover:brightness-110" type="submit">
-            {mode === 'login' ? 'Acessar Sistema' : 'Iniciar Jornada'}
+            {mode === 'login' ? 'Acessar Sistema' : isInvited ? 'Aceitar Convite' : 'Iniciar Jornada'}
           </button>
         </form>
       </motion.div>
@@ -639,23 +655,216 @@ function History({ q }: { q: string }) {
 }
 
 function Team({ q }: { q: string }) {
-  const { team, user } = useSession()
-  const { setRole } = useStore()
+  const { team, user, company } = useSession()
+  const { setRole: updateMemberRole, removeMember } = useStore() 
+  
+  const [invites, setInvites] = useState<any[]>([])
+  const [email, setEmail] = useState('')
+  const [inviteRole, setInviteRole] = useState<Role>('editor')
+  const [loading, setLoading] = useState(false)
+  const [msg, setMsg] = useState<{ type: 'success' | 'error', text: string } | null>(null)
+
+  const fetchInvites = async () => {
+    if (!company?.id) return
+    const { data } = await supabase
+      .from('invites')
+      .select('*')
+      .eq('company_id', company.id)
+      .order('created_at', { ascending: false })
+    
+    if (data) setInvites(data)
+  }
+
+  useEffect(() => {
+    fetchInvites()
+  }, [company?.id])
+
+  const handleInvite = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!company?.id) return
+    setLoading(true)
+    setMsg(null)
+
+    const cleanEmail = email.trim().toLowerCase()
+
+    // Chama a função RPC que acabamos de criar no banco
+    const { data, error } = await supabase.rpc('invite_member_to_company', {
+      p_email: cleanEmail,
+      p_role: inviteRole,
+      p_company_id: company.id
+    })
+
+    if (error) {
+      setMsg({ type: 'error', text: 'Erro interno: ' + error.message })
+    } else if (data.status === 'error') {
+      setMsg({ type: 'error', text: data.message })
+    } else {
+      // Sucesso! Pode ter sido 'added' (direto) ou 'invited' (pendente)
+      setMsg({ type: 'success', text: data.message })
+      setEmail('')
+      
+      // Se foi adicionado direto, precisamos recarregar a lista de membros ativos
+      if (data.status === 'added') {
+        // Usamos o reload do store para atualizar a tela toda
+        window.location.reload(); // Uma forma simples e garantida de puxar o novo membro
+      } else {
+        fetchInvites()
+      }
+    }
+    setLoading(false)
+  }
+
+  const handleCancelInvite = async (id: string) => {
+    await supabase.from('invites').delete().eq('id', id)
+    fetchInvites()
+  }
+
+  const filteredTeam = q
+    ? team.filter((m) => normalize(m.name).includes(normalize(q)) || normalize(m.email).includes(normalize(q)))
+    : team
+
   return (
-    <div className="space-y-6">
-      <div><h1 className="text-2xl sm:text-3xl font-display font-bold">Equipe</h1><p className="text-sm text-text-muted dark:text-white/50">Gerencie acessos.</p></div>
-      <div className="grid gap-4">
-        {team.map((m) => (
-          <div key={m.id} className="flex flex-col sm:flex-row sm:items-center justify-between rounded-2xl border border-border-subtle dark:border-white/10 bg-bg-surface/50 dark:bg-white/5 p-4 gap-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-violet/30 font-bold">{m.name.charAt(0)}</div>
-              <div className="min-w-0"><p className="font-medium truncate">{m.name}</p><p className="text-sm text-text-muted dark:text-white/50 truncate">{m.email}</p></div>
-            </div>
-            <select className="rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/40 p-2 text-sm outline-none w-full sm:w-auto" value={m.role} disabled={m.id === user?.id} onChange={(e) => setRole(m.id, e.target.value as Role)}>
-              <option value="administrador">Administrador</option><option value="editor">Editor</option><option value="visualizador">Visualizador</option>
+    <div className="grid gap-6 lg:grid-cols-3 items-start">
+      
+      {/* Coluna Esquerda: Formulário e Convites Pendentes */}
+      <div className="space-y-6">
+        <form className="rounded-3xl border border-border-subtle dark:border-white/10 bg-bg-surface/50 dark:bg-white/5 p-6 backdrop-blur-md space-y-4" onSubmit={handleInvite}>
+          <div>
+            <h3 className="text-lg font-bold">Convidar</h3>
+            <p className="text-xs text-text-muted dark:text-white/50 mt-1">Adicione alguém à sua equipe.</p>
+          </div>
+          
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-text-secondary dark:text-white/70">E-mail do colaborador</label>
+            <input 
+              type="email" 
+              className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 text-sm outline-none focus:border-brand-violet" 
+              placeholder="nome@empresa.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required 
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-text-secondary dark:text-white/70">Permissão</label>
+            <select 
+              className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 text-sm outline-none focus:border-brand-violet" 
+              value={inviteRole}
+              onChange={(e) => setInviteRole(e.target.value as Role)}
+            >
+              <option value="administrador">Administrador (Total)</option>
+              <option value="editor">Editor (Operacional)</option>
+              <option value="visualizador">Visualizador (Leitura)</option>
             </select>
           </div>
-        ))}
+
+          {msg && (
+            <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} className={`rounded-xl border px-3 py-2 text-xs ${msg.type === 'success' ? 'border-success/30 bg-success/10 text-success' : 'border-danger/30 bg-danger/10 text-danger'}`}>
+              {msg.text}
+            </motion.div>
+          )}
+
+          <button 
+            type="submit" 
+            disabled={loading}
+            className="w-full rounded-xl bg-brand-gradient py-3 text-sm font-bold text-white shadow-lg transition hover:scale-[1.02] disabled:opacity-50 disabled:hover:scale-100 flex justify-center items-center gap-2"
+          >
+            {loading ? 'Processando...' : <><Plus className="h-4 w-4"/> Adicionar / Convidar</>}
+          </button>
+        </form>
+
+        {/* Lista de Convites Pendentes */}
+        {invites.length > 0 && (
+          <div className="rounded-3xl border border-warning/30 bg-warning/5 p-5 backdrop-blur-md space-y-3">
+            <h4 className="text-sm font-bold text-warning flex items-center gap-2">
+              <HistoryIcon className="h-4 w-4" /> Pendentes ({invites.length})
+            </h4>
+            <div className="space-y-2">
+              {invites.map(inv => (
+                <div key={inv.id} className="flex items-center justify-between rounded-xl bg-black/5 dark:bg-black/20 p-2.5">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate text-text-primary dark:text-white">{inv.email}</p>
+                    <p className="text-[10px] text-text-muted dark:text-white/50 uppercase">{inv.role}</p>
+                  </div>
+                  <button onClick={() => handleCancelInvite(inv.id)} className="text-danger hover:bg-danger/20 p-1.5 rounded-lg transition" title="Cancelar convite">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Coluna Direita: Membros Ativos */}
+      <div className="lg:col-span-2 rounded-3xl border border-border-subtle dark:border-white/10 bg-bg-surface/50 dark:bg-white/5 p-6 backdrop-blur-md">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-lg font-bold">Equipe Ativa</h3>
+          <span className="rounded-full bg-brand-violet/20 px-3 py-1 text-xs font-bold text-brand-violet">{team.length} membros</span>
+        </div>
+        
+        {filteredTeam.length === 0 && q && (
+          <p className="text-sm text-text-muted dark:text-white/50 py-4 text-center">Nenhum colaborador encontrado para "{q}".</p>
+        )}
+
+        <div className="space-y-3">
+          {filteredTeam.map((m) => {
+            const iAmAdmin = user?.role === 'administrador'
+            const isSelf = m.id === user?.id
+
+            return (
+              <div key={m.id} className="flex flex-col sm:flex-row sm:items-center justify-between rounded-2xl border border-border-subtle dark:border-white/5 bg-black/5 dark:bg-white/5 p-4 gap-4 hover:bg-black/10 dark:hover:bg-white/10 transition">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-gradient text-white font-bold shadow-md">
+                    {m.name ? m.name.charAt(0).toUpperCase() : '?'}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-medium truncate text-text-primary dark:text-white">
+                      {m.name || 'Sem nome'} {isSelf && <span className="text-xs text-text-muted font-normal">(você)</span>}
+                    </p>
+                    <p className="text-sm text-text-muted dark:text-white/50 truncate">{m.email}</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  {iAmAdmin && !isSelf ? (
+                    <>
+                      <select 
+                        className="w-full sm:w-auto rounded-xl border border-border-subtle dark:border-white/10 bg-bg-surface dark:bg-black/40 p-2 text-sm outline-none focus:border-brand-violet cursor-pointer" 
+                        value={m.role} 
+                        onChange={(e) => updateMemberRole(m.id, e.target.value as Role)}
+                      >
+                        <option value="administrador">Administrador</option>
+                        <option value="editor">Editor</option>
+                        <option value="visualizador">Visualizador</option>
+                      </select>
+                      
+                      <button 
+                        onClick={() => {
+                          if (confirm(`Tem certeza que deseja remover ${m.name} da equipe?`)) {
+                            removeMember(m.id)
+                          }
+                        }}
+                        className="rounded-xl bg-danger/10 p-2 text-danger hover:bg-danger/20 transition"
+                        title="Remover da equipe"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </>
+                  ) : (
+                    <span className={`rounded-xl px-3 py-1.5 text-xs font-bold uppercase tracking-wider ${
+                      m.role === 'administrador' ? 'bg-brand-violet/20 text-brand-violet' :
+                      m.role === 'editor' ? 'bg-brand-cyan/20 text-brand-cyan' : 'bg-black/10 dark:bg-white/10 text-text-muted dark:text-white/50'
+                    }`}>
+                      {m.role}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
       </div>
     </div>
   )
@@ -663,17 +872,102 @@ function Team({ q }: { q: string }) {
 
 function Profile() {
   const { user, company } = useSession()
-  const { setProfile } = useStore()
+  const { setProfile, deleteAccount } = useStore()
   const [name, setName] = useState(user?.name || '')
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [confirmText, setConfirmText] = useState('')
+  const [isDeleting, setIsDeleting] = useState(false)
+
+  const handleDelete = async () => {
+    if (confirmText !== 'EXCLUIR') return
+    setIsDeleting(true)
+    await deleteAccount()
+  }
+
   return (
     <div className="space-y-6 max-w-xl">
-      <div><h1 className="text-2xl sm:text-3xl font-display font-bold">Perfil</h1><p className="text-sm text-text-muted dark:text-white/50">Informações da conta.</p></div>
-      <div className="rounded-3xl border border-border-subtle dark:border-white/10 bg-bg-surface/50 dark:bg-white/5 p-6 space-y-4 backdrop-blur-md">
-        <div className="flex flex-col gap-1.5"><label className="text-sm text-text-muted dark:text-white/50">E-mail</label><input className="w-full rounded-xl border border-border-subtle dark:border-white/5 bg-black/5 dark:bg-white/5 p-3 cursor-not-allowed opacity-70 outline-none" value={user?.email || ''} disabled /></div>
-        <div className="flex flex-col gap-1.5"><label className="text-sm text-text-muted dark:text-white/50">Nome</label><input className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 outline-none focus:border-brand-violet" value={name} onChange={(e) => setName(e.target.value)} /></div>
-        <div className="flex flex-col gap-1.5"><label className="text-sm text-text-muted dark:text-white/50">Empresa</label><input className="w-full rounded-xl border border-border-subtle dark:border-white/5 bg-black/5 dark:bg-white/5 p-3 cursor-not-allowed opacity-70 outline-none" value={company?.name || ''} disabled /></div>
-        <button className="w-full rounded-xl bg-text-primary dark:bg-white py-3 font-bold text-white dark:text-black hover:scale-[1.02] transition mt-2" onClick={() => setProfile(name)}>Salvar</button>
+      <div>
+        <h1 className="text-2xl sm:text-3xl font-display font-bold">Perfil</h1>
+        <p className="text-sm text-text-muted dark:text-white/50">Informações da conta.</p>
       </div>
+      
+      {/* Card de Informações Básicas */}
+      <div className="rounded-3xl border border-border-subtle dark:border-white/10 bg-bg-surface/50 dark:bg-white/5 p-6 space-y-4 backdrop-blur-md">
+        <div className="flex flex-col gap-1.5">
+          <label className="text-sm text-text-muted dark:text-white/50">E-mail</label>
+          <input className="w-full rounded-xl border border-border-subtle dark:border-white/5 bg-black/5 dark:bg-white/5 p-3 cursor-not-allowed opacity-70 outline-none" value={user?.email || ''} disabled />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <label className="text-sm text-text-muted dark:text-white/50">Nome</label>
+          <input className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 outline-none focus:border-brand-violet" value={name} onChange={(e) => setName(e.target.value)} />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <label className="text-sm text-text-muted dark:text-white/50">Empresa</label>
+          <input className="w-full rounded-xl border border-border-subtle dark:border-white/5 bg-black/5 dark:bg-white/5 p-3 cursor-not-allowed opacity-70 outline-none" value={company?.name || ''} disabled />
+        </div>
+        <button className="w-full rounded-xl bg-text-primary dark:bg-white py-3 font-bold text-white dark:text-black hover:scale-[1.02] transition mt-2" onClick={() => setProfile(name)}>
+          Salvar Alterações
+        </button>
+      </div>
+
+      {/* ZONA DE PERIGO */}
+      <div className="rounded-3xl border border-danger/30 bg-danger/5 p-6 space-y-4 backdrop-blur-md">
+        <div>
+          <h3 className="text-lg font-bold text-danger">Zona de Perigo</h3>
+          <p className="text-sm text-danger/70 mt-1">
+            Ações irreversíveis. Se você for o dono da empresa, todos os dados (produtos, movimentações e equipe) serão apagados permanentemente.
+          </p>
+        </div>
+        <button 
+          className="rounded-xl border border-danger bg-transparent px-4 py-2 text-sm font-bold text-danger transition hover:bg-danger hover:text-white" 
+          onClick={() => setShowDeleteModal(true)}
+        >
+          Excluir minha conta
+        </button>
+      </div>
+
+      {/* MODAL DE CONFIRMAÇÃO DE EXCLUSÃO */}
+      <AnimatePresence>
+        {showDeleteModal && (
+          <SpatialModal title="Excluir conta permanentemente" onClose={() => !isDeleting && setShowDeleteModal(false)}>
+            <div className="space-y-4">
+              <div className="rounded-xl border border-danger/30 bg-danger/10 p-4 text-sm text-danger">
+                <p className="font-bold">Atenção: Esta ação não pode ser desfeita.</p>
+                <p className="mt-1">Sua conta e todo o histórico serão apagados permanentemente.</p>
+              </div>
+              
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium text-text-secondary dark:text-white/70">
+                  Digite <strong className="text-danger">EXCLUIR</strong> para confirmar:
+                </label>
+                <input 
+                  className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 outline-none focus:border-danger text-text-primary dark:text-white" 
+                  value={confirmText} 
+                  onChange={(e) => setConfirmText(e.target.value.toUpperCase())} 
+                  placeholder="EXCLUIR"
+                />
+              </div>
+
+              <div className="flex gap-2 justify-end pt-2">
+                <button 
+                  className="rounded-xl px-4 py-2 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/10 transition" 
+                  onClick={() => setShowDeleteModal(false)}
+                  disabled={isDeleting}
+                >
+                  Cancelar
+                </button>
+                <button 
+                  className="rounded-xl bg-danger px-4 py-2 text-sm font-bold text-white transition hover:bg-red-700 disabled:opacity-50 flex items-center gap-2" 
+                  onClick={handleDelete}
+                  disabled={confirmText !== 'EXCLUIR' || isDeleting}
+                >
+                  {isDeleting ? 'Excluindo...' : 'Excluir Definitivamente'}
+                </button>
+              </div>
+            </div>
+          </SpatialModal>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
