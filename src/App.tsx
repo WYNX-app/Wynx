@@ -190,7 +190,7 @@ function Auth() {
    ============================================================ */
 function Shell() {
   const { user, company, notifications } = useSession()
-  const { logout } = useStore()
+  const { logout, isImpersonating, stopImpersonation } = useStore() // <-- ADICIONADO AQUI
   const [page, setPage] = useState<PageId>('dashboard')
   const [q, setQ] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
@@ -203,14 +203,12 @@ function Shell() {
   const unread = notifications.filter((n) => !n.read).length
 
   useEffect(() => {
-    // Inicia o tour se não tiver sido concluído
     if (!localStorage.getItem('wynx_onboarding_done')) {
       setTimeout(() => setShowTour(true), 1000)
     }
   }, [])
 
   useEffect(() => {
-    // O TourGuide avisa em qual passo está, e nós mudamos a tela
     if (showTour) {
       if (tourStep === 3) setPage('produtos')
       else if (tourStep === 4) setPage('estoque')
@@ -232,7 +230,6 @@ function Shell() {
   const isSuperAdminNoCompany = user?.isSuperAdmin && !company;
   const visibleDockItems = isSuperAdminNoCompany ? [] : DOCK_ITEMS;
 
-  // Classes base para o Vidro (Glassmorphism Realista)
   const glassClasses = `
     bg-white/40 dark:bg-[#16142E]/40 
     backdrop-blur-2xl backdrop-saturate-200 backdrop-brightness-110
@@ -244,14 +241,30 @@ function Shell() {
   return (
     <div className="relative min-h-screen bg-bg-base dark:bg-[#0A0514] text-text-primary dark:text-white selection:bg-brand-pink/30 overflow-hidden transition-colors duration-500">
       
+      {/* BANNER DE IMPERSONAÇÃO (Fica no topo de tudo) */}
+      {isImpersonating && (
+        <div className="fixed top-0 inset-x-0 z-[9999] flex items-center justify-between bg-accent px-4 py-2 text-black shadow-lg">
+          <div className="flex items-center gap-2 text-sm font-bold">
+            <Crown className="h-4 w-4" />
+            Modo Visualização: Você está logado como {user?.name}
+          </div>
+          <button 
+            onClick={() => stopImpersonation()} 
+            className="rounded-lg bg-black/10 px-4 py-1.5 text-xs font-bold hover:bg-black/20 transition"
+          >
+            Sair e Voltar para Admin
+          </button>
+        </div>
+      )}
+
       {/* Fundo imersivo */}
       <div className="fixed inset-0 z-0 pointer-events-none opacity-40 dark:opacity-40 transition-opacity">
         <Aurora variant="login" />
         <div className="absolute inset-0 bg-gradient-to-t from-bg-base dark:from-[#0A0514] via-transparent to-transparent" />
       </div>
 
-      {/* Top Bar (Glassmorphism) */}
-      <header className="fixed top-0 inset-x-0 z-40 flex items-center justify-between px-4 sm:px-6 py-4 sm:py-6 pointer-events-none">
+      {/* Top Bar (Glassmorphism) - Ajustado para descer se estiver no modo impersonação */}
+      <header className={`fixed inset-x-0 z-40 flex items-center justify-between px-4 sm:px-6 py-4 sm:py-6 pointer-events-none transition-all duration-300 ${isImpersonating ? 'top-10' : 'top-0'}`}>
         
         {/* Pílula do Logo */}
         <div 
@@ -284,7 +297,7 @@ function Shell() {
       {/* Menu do Usuário */}
       <AnimatePresence>
         {menuOpen && (
-          <motion.div initial={{ opacity: 0, y: -10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className={`fixed top-20 sm:top-24 right-4 sm:right-6 z-[1000] w-56 rounded-2xl p-2 ${glassClasses}`}>
+          <motion.div initial={{ opacity: 0, y: -10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className={`fixed right-4 sm:right-6 z-[1000] w-56 rounded-2xl p-2 ${glassClasses} ${isImpersonating ? 'top-28' : 'top-20 sm:top-24'}`}>
             {user?.isSuperAdmin && (
               <>
                 <button onClick={() => { setPage('super-admin' as any); setMenuOpen(false) }} className="w-full text-left flex items-center gap-3 rounded-xl px-4 py-3 text-sm text-accent hover:bg-black/5 dark:hover:bg-white/10 transition font-bold">
@@ -306,7 +319,7 @@ function Shell() {
       </AnimatePresence>
 
       {/* Área de Conteúdo */}
-      <main className="relative z-10 mx-auto max-w-7xl px-4 pt-32 pb-40 sm:pt-36 sm:px-6 h-screen overflow-y-auto overflow-x-hidden [&::-webkit-scrollbar]:hidden">
+      <main className={`relative z-10 mx-auto max-w-7xl px-4 pb-40 sm:px-6 h-screen overflow-y-auto overflow-x-hidden [&::-webkit-scrollbar]:hidden transition-all duration-300 ${isImpersonating ? 'pt-40 sm:pt-44' : 'pt-32 sm:pt-36'}`}>
         <AnimatePresence mode="wait">
           <motion.div key={page} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.3 }} className="w-full h-full">
             {isSuperAdminNoCompany ? (
@@ -1666,6 +1679,7 @@ function CheckoutSimulation({ plan, onClose, onSuccess }: { plan: any, onClose: 
 
 function SuperAdmin() {
   const { user } = useSession()
+  const { impersonateUser } = useStore() 
   const [companies, setCompanies] = useState<any[]>([])
   const [logs, setLogs] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -1694,11 +1708,6 @@ function SuperAdmin() {
     await loadData()
   }
 
-  const handleImpersonate = async (companyId: string) => {
-    await db.impersonateCompany(companyId, user?.email || '')
-    alert('Ação registrada nos logs! Em um sistema real, você seria redirecionado para o painel do cliente.')
-  }
-
   // --- Métricas e Filtros ---
   const clientCompanies = companies.filter(c => c.ownerEmail !== 'suportewynx@gmail.com');
   
@@ -1710,19 +1719,20 @@ function SuperAdmin() {
 
   const activeCompanies = clientCompanies.filter(c => c.status === 'active');
   
+  // CORREÇÃO AQUI: Usando os nomes reais do banco (essencial, profissional, empresarial)
   const totalMRR = activeCompanies.reduce((acc, c) => {
-    if (c.plan === 'starter') return acc + 149
-    if (c.plan === 'business') return acc + 499
-    if (c.plan === 'enterprise') return acc + 1299
+    if (c.plan === 'essencial') return acc + 149
+    if (c.plan === 'profissional') return acc + 499
+    if (c.plan === 'empresarial') return acc + 1299
     return acc
   }, 0)
 
   // Dados para o Gráfico de Planos
   const planDistribution = [
     { name: 'Grátis', value: clientCompanies.filter(c => c.plan === 'gratuito').length, color: '#6B7280' },
-    { name: 'Starter', value: clientCompanies.filter(c => c.plan === 'starter').length, color: '#06B6D4' },
-    { name: 'Business', value: clientCompanies.filter(c => c.plan === 'business').length, color: '#C4B5FD' },
-    { name: 'Enterprise', value: clientCompanies.filter(c => c.plan === 'enterprise').length, color: '#F5B942' },
+    { name: 'Starter', value: clientCompanies.filter(c => c.plan === 'essencial').length, color: '#06B6D4' },
+    { name: 'Business', value: clientCompanies.filter(c => c.plan === 'profissional').length, color: '#C4B5FD' },
+    { name: 'Enterprise', value: clientCompanies.filter(c => c.plan === 'empresarial').length, color: '#F5B942' },
   ].filter(p => p.value > 0);
 
   // Dados fake para o gráfico de crescimento
@@ -1838,9 +1848,9 @@ function SuperAdmin() {
             >
               <option value="todos">Todos os Planos</option>
               <option value="gratuito">Gratuito</option>
-              <option value="starter">Starter</option>
-              <option value="business">Business</option>
-              <option value="enterprise">Enterprise</option>
+              <option value="essencial">Starter (Essencial)</option>
+              <option value="profissional">Business (Profissional)</option>
+              <option value="empresarial">Enterprise (Empresarial)</option>
             </select>
           </div>
         </div>
@@ -1871,10 +1881,10 @@ function SuperAdmin() {
                   <td className="px-4 py-4">
                     <span className={`px-2.5 py-1 rounded-full text-xs font-bold uppercase ${
                       c.plan === 'gratuito' ? 'bg-black/10 text-text-muted' :
-                      c.plan === 'starter' ? 'bg-brand-cyan/20 text-brand-cyan' :
-                      c.plan === 'business' ? 'bg-brand-violet/20 text-brand-violet' : 'bg-accent/20 text-accent'
+                      c.plan === 'essencial' ? 'bg-brand-cyan/20 text-brand-cyan' :
+                      c.plan === 'profissional' ? 'bg-brand-violet/20 text-brand-violet' : 'bg-accent/20 text-accent'
                     }`}>
-                      {c.plan}
+                      {c.plan === 'essencial' ? 'STARTER' : c.plan === 'profissional' ? 'BUSINESS' : c.plan === 'empresarial' ? 'ENTERPRISE' : c.plan}
                     </span>
                   </td>
                   <td className="px-4 py-4 text-text-secondary dark:text-white/70">{c.membersCount} usuários</td>
@@ -1887,7 +1897,15 @@ function SuperAdmin() {
                   <td className="px-4 py-4 text-text-muted dark:text-white/50">{new Date(c.created_at).toLocaleDateString('pt-BR')}</td>
                   <td className="px-4 py-4 text-right flex items-center justify-end gap-2">
                     {/* Ação: Impersonate */}
-                    <button onClick={() => handleImpersonate(c.id)} className="p-2 rounded-lg bg-brand-cyan/10 text-brand-cyan hover:bg-brand-cyan/20 transition" title="Entrar como Cliente">
+                    <button 
+                      onClick={() => {
+                        if (confirm(`Deseja acessar o painel da empresa ${c.name}?`)) {
+                          impersonateUser(c.owner_id) // <-- CHAMADA REAL AQUI
+                        }
+                      }} 
+                      className="p-2 rounded-lg bg-brand-cyan/10 text-brand-cyan hover:bg-brand-cyan/20 transition" 
+                      title="Entrar como Cliente"
+                    >
                       <LogIn className="h-4 w-4" />
                     </button>
                     

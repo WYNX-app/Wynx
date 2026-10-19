@@ -40,6 +40,10 @@ type Store = {
   // Fornecedores
   saveSupplier: (input: any) => boolean
   removeSupplier: (id: string) => boolean
+  // Impersonação
+  isImpersonating: boolean
+  impersonateUser: (targetUserId: string) => Promise<boolean>
+  stopImpersonation: () => Promise<void>
 }
 
 const Ctx = createContext<Store | null>(null)
@@ -48,6 +52,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AppState>(emptyState())
   const [ready, setReady] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  
+  // Estados de Impersonação
+  const [isImpersonating, setIsImpersonating] = useState(false)
+  const [originalUserId, setOriginalUserId] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -148,7 +156,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           cost: Number(input.cost) || 0,
           minQty: Number(input.minQty) || 0,
           notes: input.notes,
-          supplierId: input.supplierId || null, // <-- ADICIONADO AQUI
+          supplierId: input.supplierId || null,
+          storeId: input.storeId || null, // <-- Mantendo o storeId
         }
         const r = input.id
           ? await db.updateProduct(input.id, payload)
@@ -302,6 +311,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           notifications: prev.notifications.map(n => ({ ...n, read: true }))
         }))
       })()
+      return true
     },
 
     exportBackup: async () => {
@@ -363,7 +373,39 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       })()
       return true
     },
-  }), [state, ready, error])
+
+    // --- IMPERSONAÇÃO ---
+    isImpersonating,
+    
+    impersonateUser: async (targetUserId) => {
+      if (isImpersonating) return false // Já está impersonando
+      
+      const currentAdminId = state.sessionUserId
+      if (!currentAdminId) return false
+
+      // Carrega o estado da empresa do cliente
+      const result = await db.loadCompanyState(targetUserId)
+      if (result.state) {
+        setOriginalUserId(currentAdminId) // Salva quem é o admin original
+        setIsImpersonating(true)
+        setState(result.state) // Renderiza o app como o cliente
+        return true
+      }
+      return false
+    },
+
+    stopImpersonation: async () => {
+      if (!originalUserId) return
+      
+      // Volta a carregar os dados do Admin
+      const result = await db.loadCompanyState(originalUserId)
+      if (result.state) {
+        setState(result.state)
+      }
+      setIsImpersonating(false)
+      setOriginalUserId(null)
+    },
+  }), [state, ready, error, isImpersonating, originalUserId])
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }
@@ -389,7 +431,7 @@ export function useSession() {
     team: company ? state.users.filter((u) => u.companyId === company.id) : [],
     categories: company ? state.categories[company.id] || [] : [],
     suppliers: company ? (state.suppliers || []).filter((s) => s.companyId === company.id) : [],
-    stores: company ? (state.stores || []).filter((s) => s.companyId === company.id) : [], // <-- ADICIONADO AQUI
+    stores: company ? (state.stores || []).filter((s) => s.companyId === company.id) : [],
     insights: company ? generateInsights(state) : [],
     kpis: company ? kpis(state) : { products: 0, units: 0, low: 0, value: 0, sales: 0, revenue: 0, idle: 0, movements: 0 }
   }
