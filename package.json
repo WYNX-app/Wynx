@@ -19,6 +19,7 @@
     "@hugeicons/react": "^1.1.10",
     "@supabase/supabase-js": "^2.117.3",
     "@tailwindcss/vite": "^4.3.3",
+    "framer-motion": "^14.3.0",
     "html5-qrcode": "^2.3.8",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.9",
