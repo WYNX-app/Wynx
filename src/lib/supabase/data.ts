@@ -36,7 +36,7 @@ export async function loadCompanyState(
   const { data: company, error: cErr } = await supabase.from("companies").select("id, name, segment, city, state, plan, created_at").eq("id", companyId).single();
   if (cErr || !company) return { error: "Empresa não encontrada." };
 
-  const [productsRes, movementsRes, categoriesRes, alertsRes, auditRes, membersRes, suppliersRes, storesRes] =
+    const [productsRes, movementsRes, categoriesRes, alertsRes, auditRes, membersRes, suppliersRes, storesRes, plansRes, subscriptionRes] =
     await Promise.all([
       supabase.from("products").select("*").eq("company_id", companyId).order("created_at", { ascending: false }),
       supabase.from("movements").select("*").eq("company_id", companyId).order("created_at", { ascending: false }).limit(500),
@@ -46,6 +46,8 @@ export async function loadCompanyState(
       supabase.from("members").select("id, user_id, role, created_at").eq("company_id", companyId),
       supabase.from("suppliers").select("*").eq("company_id", companyId).order("name"),
       supabase.from("stores").select("*").eq("company_id", companyId).order("name"),
+      supabase.from("plans").select("*").order("price_cents"), // <-- NOVO
+      supabase.from("subscriptions").select("*").eq("company_id", companyId).maybeSingle(), // <-- NOVO
     ]);
 
   if (productsRes.error) return { error: productsRes.error.message };
@@ -53,6 +55,11 @@ export async function loadCompanyState(
   if (categoriesRes.error) return { error: categoriesRes.error.message };
   if (alertsRes.error) return { error: alertsRes.error.message };
   if (auditRes.error) return { error: auditRes.error.message };
+  if (membersRes.error) return { error: membersRes.error.message };
+  if (suppliersRes.error) return { error: suppliersRes.error.message };
+  if (storesRes.error) return { error: storesRes.error.message };
+  if (plansRes.error) return { error: plansRes.error.message };
+  if (subscriptionRes.error) return { error: subscriptionRes.error.message };
 
   const memberUserIds = (membersRes.data ?? []).map((m: any) => m.user_id);
   let profilesData: any[] = [];
@@ -76,7 +83,7 @@ export async function loadCompanyState(
     products: (productsRes.data ?? []).map((p: any) => ({
       id: p.id, companyId: p.company_id, name: p.name, sku: p.sku ?? "", category: p.category ?? "Geral",
       color: p.color ?? "", size: p.size ?? "", barcode: p.barcode ?? "", price: Number(p.price), cost: Number(p.cost), qty: p.qty, minQty: p.min_qty, notes: p.notes ?? "", 
-      supplierId: p.supplier_id, storeId: p.store_id, // <-- AQUI
+      supplierId: p.supplier_id, storeId: p.store_id,
       createdAt: p.created_at, updatedAt: p.updated_at,
     })),
     movements: (movementsRes.data ?? []).map((m: any) => ({
@@ -93,9 +100,29 @@ export async function loadCompanyState(
     suppliers: (suppliersRes.data ?? []).map((s: any) => ({
       id: s.id, companyId: s.company_id, name: s.name, cnpj: s.cnpj, phone: s.phone, email: s.email, createdAt: s.created_at
     })),
-    stores: (storesRes.data ?? []).map((s: any) => ({ // <-- AQUI
+    stores: (storesRes.data ?? []).map((s: any) => ({ 
       id: s.id, companyId: s.company_id, name: s.name, type: s.type, createdAt: s.created_at
     })),
+    
+    // MAPEAMENTO TIPADO DOS PLANOS E ASSINATURA
+    plans: (plansRes.data ?? []).map((p: any) => ({
+      id: p.id,
+      slug: p.slug,
+      name: p.name,
+      price_cents: p.price_cents,
+      product_limit: p.product_limit,
+      user_limit: p.user_limit,
+      features: p.features
+    })),
+    subscription: subscriptionRes.data ? {
+      id: subscriptionRes.data.id,
+      company_id: subscriptionRes.data.company_id,
+      plan_id: subscriptionRes.data.plan_id,
+      status: subscriptionRes.data.status as any,
+      trial_ends_at: subscriptionRes.data.trial_ends_at,
+      current_period_end: subscriptionRes.data.current_period_end
+    } : null,
+
     sessionUserId: userId,
   };
 
@@ -262,4 +289,21 @@ export async function adminUpdateCompanyPlan(companyId: string, plan: string, ac
 export async function impersonateCompany(companyId: string, adminEmail: string) {
   await supabase.from('admin_logs').insert({ admin_email: adminEmail, action: 'Acessar Painel do Cliente', details: `Entrou na empresa ID ${companyId}` });
   return { success: true };
+}
+
+export async function updateSubscriptionPlan(companyId: string, planId: string) {
+  const { error } = await supabase
+    .from('subscriptions')
+    .update({ 
+      plan_id: planId, 
+      status: 'active',
+      current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+    })
+    .eq('company_id', companyId);
+
+  if (error) {
+    console.error("Erro ao atualizar plano:", error);
+    return { error: error.message };
+  }
+  return {};
 }

@@ -349,11 +349,11 @@ function Shell() {
 
       {/* Dock de Navegação (Vidro Ultra Realista) */}
       <div className="fixed bottom-4 sm:bottom-6 inset-x-0 z-[999] flex justify-center pointer-events-none px-4">
-<motion.nav 
-  id="tour-dock"
-  initial={{ y: 50, opacity: 0 }} 
-  animate={{ y: 0, opacity: 1 }} 
-  className="pointer-events-auto flex w-full max-w-lg sm:w-max items-center justify-between sm:justify-start gap-1 sm:gap-2 rounded-[28px] p-2 bg-white/80 dark:bg-[#16142E]/90 backdrop-blur-xl border border-white/50 dark:border-white/10 shadow-2xl"
+      <motion.nav 
+         id="tour-dock"
+          initial={{ y: 50, opacity: 0 }} 
+          animate={{ y: 0, opacity: 1 }} 
+          className="pointer-events-auto flex w-full max-w-lg sm:w-max items-center justify-between sm:justify-start gap-1 sm:gap-2 rounded-[28px] p-2 bg-white/80 dark:bg-[#16142E]/90 backdrop-blur-xl border border-white/50 dark:border-white/10 shadow-2xl"
 >
           {visibleDockItems.map((item) => {
             const Icon = item.icon
@@ -2024,55 +2024,163 @@ function SuperAdmin() {
 }
 
 function Billing() {
-  const { company } = useSession()
-  const { setPlan } = useStore()
-  const [checkoutPlan, setCheckoutPlan] = useState<{id: PlanId, plan: any} | null>(null)
+  const { company, plans, subscription, products, team } = useSession()
+  const { changePlan } = useStore()
+  const [loadingPlan, setLoadingPlan] = useState<string | null>(null)
+  const [showCheckout, setShowCheckout] = useState<string | null>(null)
+
+  const currentPlan = plans.find(p => p.id === subscription?.plan_id)
+  const isTrial = subscription?.status === 'trialing'
+  
+  const trialDaysLeft = subscription?.trial_ends_at 
+    ? Math.max(0, Math.ceil((new Date(subscription.trial_ends_at).getTime() - Date.now()) / (1000 * 3600 * 24)))
+    : 0
+
+  const productsUsed = products.length
+  const usersUsed = team.length
+
+  const handleUpgrade = async (planId: string) => {
+    setLoadingPlan(planId)
+    
+    // Simula o tempo de resposta do Asaas (1.5 segundos)
+    setTimeout(async () => {
+      const success = await changePlan(planId)
+      setLoadingPlan(null)
+      setShowCheckout(null)
+      
+      if (!success) {
+        alert('Erro ao simular pagamento. Verifique o console.')
+      }
+    }, 1500)
+  }
+
+  const formatPrice = (cents: number) => {
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cents / 100)
+  }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-display font-bold">Planos e Assinatura</h1>
-        <p className="text-sm text-text-muted dark:text-white/50">Escolha o nível de poder do seu sistema.</p>
-      </div>
-      
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {(Object.keys(PLANS) as PlanId[]).map((id) => {
-          const plan = PLANS[id]; const current = company?.plan === id
-          return (
-            <div key={id} className={`rounded-3xl border p-6 backdrop-blur-md flex flex-col justify-between ${current ? 'border-brand-pink bg-brand-pink/10 shadow-[0_0_30px_rgba(249,168,212,0.2)]' : 'border-border-subtle dark:border-white/10 bg-bg-surface/50 dark:bg-white/5 hover:border-brand-violet/30 transition'}`}>
-              <div>
-                <p className="text-sm font-medium text-text-muted dark:text-white/50 uppercase tracking-widest">{plan.name}</p>
-                <p className="mt-2 font-display text-3xl sm:text-4xl font-black">{plan.price === 0 ? 'Grátis' : formatMoney(plan.price)}</p>
-                <ul className="mt-6 space-y-2 text-sm text-text-secondary dark:text-white/70">
-                  <li className="flex items-center gap-2"><div className="h-1 w-1 rounded-full bg-brand-cyan" /> {plan.products === Infinity ? 'Produtos ilimitados' : `Até ${plan.products} produtos`}</li>
-                  <li className="flex items-center gap-2"><div className="h-1 w-1 rounded-full bg-brand-cyan" /> {plan.users === Infinity ? 'Usuários ilimitados' : `${plan.users} usuário(s)`}</li>
-                  <li className="flex items-center gap-2"><div className="h-1 w-1 rounded-full bg-brand-cyan" /> {plan.ai}</li>
-                </ul>
-              </div>
-              <button 
-                className={`mt-8 w-full rounded-xl py-3 font-bold transition flex items-center justify-center gap-2 ${current ? 'bg-black/5 dark:bg-white/10 cursor-default' : 'bg-brand-gradient text-white hover:scale-105 shadow-[0_0_15px_rgba(196,181,253,0.3)]'}`} 
-                disabled={current} 
-                onClick={() => setCheckoutPlan({ id, plan })}
-              >
-                {current ? 'Plano Atual' : 'Assinar Agora'}
-              </button>
-            </div>
-          )
-        })}
+    <div className="space-y-6 max-w-6xl mx-auto pb-24">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-display font-bold">Assinatura</h1>
+          <p className="text-sm text-text-muted dark:text-white/50">Gerencie seu plano e limites de uso.</p>
+        </div>
       </div>
 
-      <AnimatePresence>
-        {checkoutPlan && (
-          <CheckoutSimulation 
-            plan={checkoutPlan.plan} 
-            onClose={() => setCheckoutPlan(null)} 
-            onSuccess={() => {
-              setPlan(checkoutPlan.id)
-              setCheckoutPlan(null)
-            }} 
-          />
-        )}
-      </AnimatePresence>
+      <div className="grid gap-6 md:grid-cols-3">
+        
+        {/* CARD: Status Atual e Consumo */}
+        <div className="md:col-span-1 rounded-3xl border border-border-subtle dark:border-white/10 bg-bg-surface/80 dark:bg-[#16142E]/80 p-6 shadow-xl backdrop-blur-xl h-fit">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-bold text-lg">Seu Plano</h3>
+            <span className={`px-2.5 py-1 rounded-full text-xs font-bold uppercase ${
+              isTrial ? 'bg-brand-cyan/20 text-brand-cyan' : 'bg-success/20 text-success'
+            }`}>
+              {subscription?.status || 'Sem assinatura'}
+            </span>
+          </div>
+          
+          <p className="text-2xl font-black text-brand-violet">{currentPlan?.name || 'Gratuito'}</p>
+          <p className="text-sm text-text-muted mt-1">{currentPlan ? formatPrice(currentPlan.price_cents) + '/mês' : 'R$ 0,00'}</p>
+
+          {isTrial && (
+            <div className="mt-4 p-3 rounded-xl bg-brand-cyan/10 border border-brand-cyan/20">
+              <p className="text-sm font-bold text-brand-cyan">Período de Teste</p>
+              <p className="text-xs text-brand-cyan/80 mt-1">Faltam {trialDaysLeft} dias. Aproveite todos os recursos.</p>
+            </div>
+          )}
+
+          <div className="space-y-4 mt-8">
+            <div>
+              <div className="flex justify-between text-sm mb-1">
+                <span className="text-text-muted">Produtos</span>
+                <span className="font-bold">{productsUsed} / {currentPlan?.product_limit || '∞'}</span>
+              </div>
+              <div className="h-2 w-full bg-black/5 dark:bg-white/10 rounded-full overflow-hidden">
+                <div className="h-full bg-brand-violet rounded-full" style={{ width: `${currentPlan?.product_limit ? Math.min(100, (productsUsed/currentPlan.product_limit)*100) : 5}%` }}></div>
+              </div>
+            </div>
+            <div>
+              <div className="flex justify-between text-sm mb-1">
+                <span className="text-text-muted">Equipe</span>
+                <span className="font-bold">{usersUsed} / {currentPlan?.user_limit || '∞'}</span>
+              </div>
+              <div className="h-2 w-full bg-black/5 dark:bg-white/10 rounded-full overflow-hidden">
+                <div className="h-full bg-brand-pink rounded-full" style={{ width: `${currentPlan?.user_limit ? Math.min(100, (usersUsed/currentPlan.user_limit)*100) : 5}%` }}></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* GRID DE PLANOS */}
+        <div className="md:col-span-2 grid gap-4 sm:grid-cols-2">
+          {plans.map(p => {
+            const isCurrent = p.id === currentPlan?.id
+            return (
+              <div key={p.id} className={`rounded-3xl border p-6 flex flex-col justify-between ${isCurrent ? 'border-brand-pink bg-brand-pink/5 shadow-lg' : 'border-border-subtle dark:border-white/10 bg-white/50 dark:bg-white/5'}`}>
+                <div>
+                  <p className="font-bold text-lg">{p.name}</p>
+                  <p className="text-3xl font-black mt-2">{formatPrice(p.price_cents)}<span className="text-xs font-normal text-text-muted">/mês</span></p>
+                  
+                  <ul className="mt-6 space-y-3 text-sm">
+                    <li className="flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-success" /> 
+                      {p.product_limit ? `Até ${p.product_limit} produtos` : 'Produtos ilimitados'}
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-success" /> 
+                      {p.user_limit ? `Até ${p.user_limit} usuários` : 'Usuários ilimitados'}
+                    </li>
+                    {p.features.map((f: string) => (
+                      <li key={f} className="flex items-center gap-2">
+                        <CheckCircle2 className="h-4 w-4 text-success" /> {f}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div className="mt-6">
+                  {isCurrent ? (
+                    <button disabled className="w-full rounded-xl bg-black/5 dark:bg-white/10 py-3 font-bold text-text-muted cursor-default">Plano Atual</button>
+                  ) : (
+                    <button 
+                      onClick={() => setShowCheckout(p.id)}
+                      className="w-full rounded-xl bg-brand-gradient py-3 font-bold text-white transition hover:scale-105 shadow-lg"
+                    >
+                      Fazer Upgrade
+                    </button>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* MODAL DE CHECKOUT SIMULADO */}
+      {showCheckout && (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-[#16142E] rounded-3xl p-6 w-full max-w-md shadow-2xl border border-border-subtle dark:border-white/10">
+            <h2 className="text-xl font-bold text-center mb-2">Simulação de Checkout</h2>
+            <p className="text-sm text-text-muted text-center mb-6">
+              Você está assinando o plano <strong>{plans.find(p => p.id === showCheckout)?.name}</strong>.
+            </p>
+            
+            <div className="p-4 bg-brand-cyan/10 border border-brand-cyan/20 rounded-xl mb-6 text-sm text-brand-cyan text-center">
+              ⚠️ Integração com Asaas pendente.<br/> Ao confirmar, o plano será ativado para testes.
+            </div>
+
+            <div className="flex gap-2">
+              <button onClick={() => setShowCheckout(null)} className="flex-1 rounded-xl py-3 font-bold text-text-muted hover:bg-black/5 dark:hover:bg-white/5 transition">Cancelar</button>
+              <button onClick={() => handleUpgrade(showCheckout)} disabled={!!loadingPlan} className="flex-[2] rounded-xl bg-brand-gradient py-3 font-bold text-white shadow-lg flex justify-center items-center gap-2">
+                {loadingPlan ? (
+                  <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> Processando...</>
+                ) : 'Confirmar e Ativar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

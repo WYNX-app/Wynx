@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { supabase } from './lib/supabase/client'
 import { signIn, signUp, signOut, resetPassword as sbResetPassword } from './lib/supabase/auth'
 import * as db from './lib/supabase/data'
+import { getLocalDb } from './db/database' // <-- BANCO OFFLINE
 import {
   emptyState,
   currentUser,
@@ -37,16 +38,14 @@ type Store = {
   importBackup: () => Promise<void>
   resetDemo: () => Promise<void>
   deleteAccount: () => Promise<boolean>
-  // Fornecedores
   saveSupplier: (input: any) => boolean
   removeSupplier: (id: string) => boolean
-  // Lojas
   saveStore: (input: any) => boolean
   removeStore: (id: string) => boolean
-  // Impersonação
   isImpersonating: boolean
   impersonateUser: (targetUserId: string) => Promise<boolean>
   stopImpersonation: () => Promise<void>
+  changePlan: (planId: string) => Promise<boolean>
 }
 
 const Ctx = createContext<Store | null>(null)
@@ -56,7 +55,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false)
   const [error, setError] = useState<string | null>(null)
   
-  // Estados de Impersonação
   const [isImpersonating, setIsImpersonating] = useState(false)
   const [originalUserId, setOriginalUserId] = useState<string | null>(null)
 
@@ -64,13 +62,32 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     let cancelled = false
 
     async function boot() {
+      // 1. Inicializa o banco local (Dexie/IndexedDB)
+      const localDb = await getLocalDb()
+
       const { data: { session } } = await supabase.auth.getSession()
       if (cancelled) return
+      
       if (session?.user) {
+        // 2. Carrega os dados do Supabase (Empresa, Planos, etc.)
         const result = await db.loadCompanyState(session.user.id)
         if (cancelled) return
-        if (result.state) setState(result.state)
-        else if (result.error) console.warn('[WYNX] load:', result.error)
+        
+        if (result.state) {
+          // 3. Substitui a lista de produtos e movimentações pelos dados locais (Offline-first)
+          const localProducts = await localDb.products.find().exec()
+          const localMovements = await localDb.movements.find().exec()
+
+          // Se o banco local estiver vazio (primeiro acesso), usamos os dados do Supabase
+          const finalProducts = localProducts.length > 0 ? localProducts.map((p: any) => p.toJSON()) : result.state.products
+          const finalMovements = localMovements.length > 0 ? localMovements.map((m: any) => m.toJSON()) : result.state.movements
+
+          setState({
+            ...result.state,
+            products: finalProducts,
+            movements: finalMovements,
+          })
+        }
       }
       setReady(true)
     }
@@ -112,9 +129,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       if (err) { setError(err); return false }
       const { data: { session } } = await supabase.auth.getSession()
       if (!session?.user) { setError('Sessão não iniciada.'); return false }
+      
+      const localDb = await getLocalDb()
       const result = await db.loadCompanyState(session.user.id)
       if (result.error || !result.state) { setError(result.error ?? 'Erro.'); return false }
-      setState(result.state)
+      
+      const localProducts = await localDb.products.find().exec()
+      const localMovements = await localDb.movements.find().exec()
+
+      setState({
+        ...result.state,
+        products: localProducts.length > 0 ? localProducts.map((p: any) => p.toJSON()) : result.state.products,
+        movements: localMovements.length > 0 ? localMovements.map((m: any) => m.toJSON()) : result.state.movements,
+      })
       setError(null)
       return true
     },
@@ -143,45 +170,73 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       setState(emptyState())
     },
 
+    // --- OFFLINE: SALVAR PRODUTO (RXDB) ---
     saveProduct: (input) => {
       const user = currentUser(state)
       const company = currentCompany(state)
       if (!user || !company) { setError('Sessão inválida.'); return false }
+      
       ;(async () => {
-        const payload = {
-          name: input.name,
-          sku: input.sku,
-          category: input.category,
-          color: input.color,
-          size: input.size,
-          barcode: input.barcode,
-          price: Number(input.price) || 0,
-          cost: Number(input.cost) || 0,
-          minQty: Number(input.minQty) || 0,
-          notes: input.notes,
-          supplierId: input.supplierId || null,
-          storeId: input.storeId || null,
+        try {
+          const localDb = await getLocalDb()
+          const isUpdate = !!input.id
+          const productId = input.id || crypto.randomUUID()
+
+          const productData = {
+            id: productId,
+            companyId: company.id,
+            name: input.name,
+            sku: input.sku,
+            category: input.category || 'Geral',
+            color: input.color || '',
+            size: input.size || '',
+            barcode: input.barcode || '',
+            price: Number(input.price) || 0,
+            cost: Number(input.cost) || 0,
+            qty: Number(input.qty) || 0,
+            minQty: Number(input.minQty) || 0,
+            notes: input.notes || '',
+            supplierId: input.supplierId || null,
+            storeId: input.storeId || null,
+            updatedAt: new Date().toISOString()
+          }
+
+          if (isUpdate) {
+            await localDb.products.upsert(productData)
+          } else {
+            await localDb.products.insert(productData)
+          }
+
+          // Atualiza a tela na hora (Optimistic UI)
+          setState(prev => {
+            const exists = prev.products.find(p => p.id === productId)
+            if (exists) {
+              return { ...prev, products: prev.products.map(p => p.id === productId ? { ...p, ...productData } as any : p) }
+            }
+            return { ...prev, products: [productData as any, ...prev.products] }
+          })
+        } catch (err: any) {
+          console.error('Erro ao salvar no banco local:', err)
+          setError('Erro ao salvar produto offline: ' + err.message)
         }
-        const r = input.id
-          ? await db.updateProduct(input.id, payload)
-          : await db.createProduct({ ...payload, qty: Number(input.qty) || 0, companyId: company.id, userId: user.id, userName: user.name })
-        if (r.error) { setError(r.error); return }
-        await reload(user.id)
       })()
       return true
     },
 
+    // --- OFFLINE: REMOVER PRODUTO (RXDB) ---
     removeProduct: (id) => {
       const user = currentUser(state)
       if (!user) return false
       ;(async () => {
-        const r = await db.removeProduct(id)
-        if (r.error) { setError(r.error); return }
-        await reload(user.id)
+        const localDb = await getLocalDb()
+        const doc = await localDb.products.findOne(id).exec()
+        if (doc) await doc.remove()
+        setState(prev => ({ ...prev, products: prev.products.filter(p => p.id !== id) }))
       })()
       return true
     },
 
+    // --- OFFLINE: MOVIMENTAÇÃO (RXDB) ---
     move: (input) => {
       const user = currentUser(state)
       const company = currentCompany(state)
@@ -203,26 +258,41 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       }
 
       ;(async () => {
-        const r = await db.createMovement({
-          companyId: company.id,
-          productId: product.id,
-          userId: user.id,
-          userName: user.name,
-          productName: product.name,
-          type: input.type,
-          qty,
-          resultingQty: next,
-          note: input.note || 'Movimentação',
-        })
-        if (r.error) { setError(r.error); return }
-        await reload(user.id)
+        try {
+          const localDb = await getLocalDb()
+          
+          const movementData = {
+            id: crypto.randomUUID(),
+            companyId: company.id,
+            productId: product.id,
+            productName: product.name,
+            type: input.type,
+            qty: qty,
+            resultingQty: next,
+            note: input.note || 'Movimentação',
+            userId: user.id,
+            userName: user.name,
+            createdAt: new Date().toISOString()
+          }
+
+          await localDb.movements.insert(movementData)
+          await localDb.products.upsert({ ...product, qty: next, updatedAt: new Date().toISOString() })
+
+          // Atualiza a tela na hora
+          setState(prev => ({
+            ...prev,
+            movements: [movementData as any, ...prev.movements],
+            products: prev.products.map(p => p.id === product.id ? { ...p, qty: next } : p)
+          }))
+        } catch (err: any) {
+          setError('Erro ao registrar movimentação offline: ' + err.message)
+        }
       })()
       return true
     },
 
-    invite: async () => {
-      return false
-    },
+    // --- RESTANTE DAS FUNÇÕES (ONLINE / SUPABASE DIRETO) ---
+    invite: async () => { return false },
 
     setRole: (userId, role) => {
       const user = currentUser(state)
@@ -326,22 +396,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       a.click()
     },
 
-    importBackup: async () => {
-      setError('Importação de backup desativada na versão Supabase.')
-    },
-
-    resetDemo: async () => {
-      setError('Modo demo desativado na versão Supabase.')
-    },
+    importBackup: async () => { setError('Importação desativada.') },
+    resetDemo: async () => { setError('Modo demo desativado.') },
 
     deleteAccount: async () => {
       try {
         const { error } = await supabase.functions.invoke('delete-account')
-        if (error) { 
-          setError(error.message)
-          return false 
-        }
-        
+        if (error) { setError(error.message); return false }
         await supabase.auth.signOut()
         setState(emptyState())
         return true
@@ -351,7 +412,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       }
     },
 
-    // --- FORNECEDORES ---
     saveSupplier: (input) => {
       const user = currentUser(state)
       const company = currentCompany(state)
@@ -377,7 +437,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       return true
     },
 
-    // --- LOJAS ---
     saveStore: (input) => {
       const user = currentUser(state)
       const company = currentCompany(state)
@@ -403,12 +462,22 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       return true
     },
 
-    // --- IMPERSONAÇÃO ---
+    changePlan: async (planId) => {
+      const company = currentCompany(state)
+      if (!company) return false
+      
+      const r = await db.updateSubscriptionPlan(company.id, planId)
+      if (r.error) { setError(r.error); return false }
+      
+      const user = currentUser(state)
+      if (user) await reload(user.id)
+      return true
+    },
+
     isImpersonating,
     
     impersonateUser: async (targetUserId) => {
       if (isImpersonating) return false
-      
       const currentAdminId = state.sessionUserId
       if (!currentAdminId) return false
 
@@ -459,6 +528,8 @@ export function useSession() {
     categories: company ? state.categories[company.id] || [] : [],
     suppliers: company ? (state.suppliers || []).filter((s) => s.companyId === company.id) : [],
     stores: company ? (state.stores || []).filter((s) => s.companyId === company.id) : [],
+    plans: state.plans || [],
+    subscription: state.subscription || null,
     insights: company ? generateInsights(state) : [],
     kpis: company ? kpis(state) : { products: 0, units: 0, low: 0, value: 0, sales: 0, revenue: 0, idle: 0, movements: 0 }
   }

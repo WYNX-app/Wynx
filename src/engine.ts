@@ -73,9 +73,11 @@ export function emptyState(): AppState {
     notifications: [],
     audit: [],
     categories: {},
-    sessionUserId: null,
-     suppliers: [],
-      stores: []
+    suppliers: [],
+    stores: [],
+    plans: [],
+    subscription: null,
+    sessionUserId: null
   }
 }
 

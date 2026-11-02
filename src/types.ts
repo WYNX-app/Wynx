@@ -1,3 +1,23 @@
+// Adicione no topo:
+export interface Plan {
+  id: string
+  slug: string
+  name: string
+  price_cents: number
+  product_limit: number | null
+  user_limit: number | null
+  features: string[]
+}
+
+export interface Subscription {
+  id: string
+  company_id: string
+  plan_id: string
+  status: 'trialing' | 'active' | 'past_due' | 'canceled' | 'expired' | 'suspended'
+  trial_ends_at: string
+  current_period_end: string | null
+}
+
 // Adicione a interface Supplier no topo:
 export interface Supplier {
   id: string
@@ -116,6 +136,27 @@ export interface Insight {
   productId?: string
 }
 
+// Adicione no topo:
+export interface Plan {
+  id: string
+  slug: string
+  name: string
+  price_cents: number
+  product_limit: number | null
+  user_limit: number | null
+  features: string[]
+}
+
+export interface Subscription {
+  id: string
+  company_id: string
+  plan_id: string
+  status: 'trialing' | 'active' | 'past_due' | 'canceled' | 'expired' | 'suspended'
+  trial_ends_at: string
+  current_period_end: string | null
+}
+
+// Atualize o AppState:
 export interface AppState {
   version: number
   users: User[]
@@ -125,9 +166,11 @@ export interface AppState {
   notifications: AppNotification[]
   audit: AuditEvent[]
   categories: Record<string, string[]>
-  sessionUserId: string | null,
   suppliers: Supplier[]
   stores: Store[]
+  plans: Plan[]         // <-- ADICIONE
+  subscription: Subscription | null // <-- ADICIONE
+  sessionUserId: string | null
 }
 
 export const PLANS: Record<PlanId, { name: string; price: number; products: number; users: number; ai: string; extras: string }> = {
