@@ -1,3 +1,4 @@
+import { ResetPassword } from './components/ResetPassword'
 import { Truck } from 'lucide-react'
 import ExcelJS from 'exceljs'
 import { saveAs } from 'file-saver'
@@ -45,12 +46,15 @@ export default function App() {
   const { ready, state } = useStore()
   const [splash, setSplash] = useState(true)
 
+  const isResetPasswordRoute = window.location.pathname === '/reset-password'
+
   useEffect(() => {
     const t = setTimeout(() => setSplash(false), 1800)
     return () => clearTimeout(t)
   }, [])
 
   if (!ready || splash) return <Splash />
+  if (isResetPasswordRoute) return <ResetPassword />
   if (!state.sessionUserId) return <Auth />
   
   return <Shell />
@@ -113,15 +117,34 @@ function Splash() {
    AUTH
    ============================================================ */
 function Auth() {
-  const { login, register, error, setError } = useStore()
-  const [mode, setMode] = useState<'login' | 'cadastro'>('login')
+  const { login, register, recover, error, setError } = useStore()
+  const [mode, setMode] = useState<'login' | 'cadastro' | 'recuperar'>('login')
   const [isInvited, setIsInvited] = useState(false)
   const [form, setForm] = useState({ name: '', email: '', password: '', company: '', segment: SEGMENTS[0], city: '', stateUf: 'PI' })
+  const [successMsg, setSuccessMsg] = useState<string | null>(null)
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
-    if (mode === 'login') await login(form.email, form.password)
-    else await register({ ...form })
+    setSuccessMsg(null)
+    
+    if (mode === 'login') {
+      await login(form.email, form.password)
+    } else if (mode === 'recuperar') {
+      // Chama a função de recuperação (só precisa do e-mail)
+      const ok = await recover(form.email)
+      if (ok) {
+        setSuccessMsg('Enviamos um link de recuperação para o seu e-mail. Verifique a caixa de entrada e o spam.')
+        setMode('login') // Volta pro login mas com a mensagem de sucesso
+      }
+    } else {
+      await register({ ...form })
+    }
+  }
+
+  const switchMode = (newMode: 'login' | 'cadastro' | 'recuperar') => {
+    setMode(newMode)
+    setError(null)
+    setSuccessMsg(null)
   }
 
   return (
@@ -141,17 +164,36 @@ function Auth() {
         </div>
 
         <div className="mb-6">
-          <h2 className="text-xl font-semibold text-text-primary dark:text-white">{mode === 'login' ? 'Bem-vindo de volta.' : 'Comece agora.'}</h2>
-          <p className="mt-1 text-sm text-text-muted dark:text-white/50">{mode === 'login' ? 'O estoque não vai se controlar sozinho.' : 'Crie sua conta ou aceite um convite.'}</p>
+          <h2 className="text-xl font-semibold text-text-primary dark:text-white">
+            {mode === 'login' && 'Bem-vindo de volta.'}
+            {mode === 'cadastro' && 'Comece agora.'}
+            {mode === 'recuperar' && 'Recuperar senha.'}
+          </h2>
+          <p className="mt-1 text-sm text-text-muted dark:text-white/50">
+            {mode === 'login' && 'O estoque não vai se controlar sozinho.'}
+            {mode === 'cadastro' && 'Crie sua conta ou aceite um convite.'}
+            {mode === 'recuperar' && 'Informe seu e-mail para enviarmos o link.'}
+          </p>
         </div>
 
-        <div className="mb-6 flex rounded-full bg-black/5 dark:bg-black/40 p-1">
-          {(['login', 'cadastro'] as const).map((m) => (
-            <button key={m} type="button" className={`flex-1 rounded-full py-2 text-sm font-medium transition ${mode === m ? 'bg-white dark:bg-white text-black shadow-sm' : 'text-text-muted dark:text-white/60 hover:text-text-primary dark:hover:text-white'}`} onClick={() => { setMode(m); setError(null) }}>
-              {m === 'login' ? 'Entrar' : 'Criar conta'}
-            </button>
-          ))}
-        </div>
+        {/* ABAS (só aparecem se não estiver no modo recuperar) */}
+        {mode !== 'recuperar' ? (
+          <div className="mb-6 flex rounded-full bg-black/5 dark:bg-black/40 p-1">
+            {(['login', 'cadastro'] as const).map((m) => (
+              <button key={m} type="button" className={`flex-1 rounded-full py-2 text-sm font-medium transition ${mode === m ? 'bg-white dark:bg-white text-black shadow-sm' : 'text-text-muted dark:text-white/60 hover:text-text-primary dark:hover:text-white'}`} onClick={() => switchMode(m)}>
+                {m === 'login' ? 'Entrar' : 'Criar conta'}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <button 
+            type="button" 
+            onClick={() => switchMode('login')} 
+            className="mb-6 flex items-center gap-2 text-sm font-semibold text-brand-violet hover:underline transition"
+          >
+            &larr; Voltar para o login
+          </button>
+        )}
 
         <form className="space-y-4" onSubmit={submit}>
           {mode === 'cadastro' && (
@@ -172,13 +214,33 @@ function Auth() {
               )}
             </motion.div>
           )}
+
           <input className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 text-text-primary dark:text-white outline-none focus:border-brand-violet" type="email" placeholder="E-mail" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required />
-          <PasswordField className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 text-text-primary dark:text-white outline-none focus:border-brand-violet" placeholder="Senha" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required />
+          
+          {/* SÓ MOSTRA O CAMPO DE SENHA SE NÃO ESTIVER NO MODO RECUPERAR */}
+          {mode !== 'recuperar' && (
+            <PasswordField className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 text-text-primary dark:text-white outline-none focus:border-brand-violet" placeholder="Senha" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required />
+          )}
+
+          {/* LINK DE ESQUECI A SENHA (só no modo login) */}
+          {mode === 'login' && (
+            <div className="flex justify-end">
+              <button 
+                type="button" 
+                onClick={() => switchMode('recuperar')} 
+                className="text-xs font-semibold text-text-muted hover:text-brand-pink transition"
+              >
+                Esqueci minha senha
+              </button>
+            </div>
+          )}
 
           {error && <div className="rounded-xl border border-danger/30 bg-danger/10 px-4 py-2 text-sm text-danger">{error}</div>}
+          
+          {successMsg && <div className="rounded-xl border border-success/30 bg-success/10 px-4 py-2 text-sm text-success">{successMsg}</div>}
 
           <button className="mt-2 w-full rounded-xl bg-brand-gradient py-3 font-bold text-white shadow-[0_0_20px_rgba(196,181,253,0.4)] transition hover:brightness-110" type="submit">
-            {mode === 'login' ? 'Acessar Sistema' : isInvited ? 'Aceitar Convite' : 'Iniciar Jornada'}
+            {mode === 'login' ? 'Acessar Sistema' : mode === 'cadastro' ? (isInvited ? 'Aceitar Convite' : 'Iniciar Jornada') : 'Enviar link de recuperação'}
           </button>
         </form>
       </motion.div>
@@ -1747,6 +1809,20 @@ function CheckoutSimulation({ plan, onClose, onSuccess }: { plan: any, onClose: 
 }
 
 function SuperAdmin() {
+  const resetClientPassword = async (email: string) => {
+  if (!confirm(`Enviar e-mail de recuperação para ${email}?`)) return
+  
+  // Chama a função do Supabase para resetar (ou usa a API admin)
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${window.location.origin}/reset-password`,
+  })
+  
+  if (error) {
+    alert('Erro: ' + error.message)
+  } else {
+    alert('E-mail de recuperação enviado! (Se não chegar, use a alternativa abaixo)')
+  }
+}
   const { user } = useSession()
   const { impersonateUser } = useStore() 
   const [companies, setCompanies] = useState<any[]>([])

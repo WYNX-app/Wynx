@@ -158,12 +158,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       return true
     },
 
-    recover: async (email) => {
-      const { error: err } = await sbResetPassword(email)
-      if (err) { setError(err); return false }
-      setError(null)
-      return true
-    },
+recover: async (email) => {
+  const { error: err } = await sbResetPassword(email)
+  if (err) { setError(err); return false }
+  setError(null)
+  return true
+},
 
     logout: () => {
       signOut()
