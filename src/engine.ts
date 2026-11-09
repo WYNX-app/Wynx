@@ -77,7 +77,13 @@ export function emptyState(): AppState {
     stores: [],
     plans: [],
     subscription: null,
-    sessionUserId: null
+    sessionUserId: null,
+    
+    // ADICIONE ESTAS 3:
+    cashRegisters: [],
+    sales: [],
+    cashMovements: [],
+    heldSales: [],
   }
 }
 

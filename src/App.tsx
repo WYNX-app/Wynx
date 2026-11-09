@@ -1,5 +1,5 @@
 import { ResetPassword } from './components/ResetPassword'
-import { Truck } from 'lucide-react'
+import { Clock, Truck } from 'lucide-react'
 import ExcelJS from 'exceljs'
 import { saveAs } from 'file-saver'
 import Papa from 'papaparse'
@@ -12,7 +12,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { 
   X, LayoutDashboard, Package, Layers, History as HistoryIcon,
   FileText, Users, Settings as SettingsIcon, LogOut, Search, Sparkles, Plus, Minus, Scan,
-  CreditCard, QrCode, CheckCircle2, ShieldCheck, Lock, Crown, Building2, Ban, RefreshCcw, LogIn, Store as StoreIcon
+  CreditCard, QrCode, CheckCircle2, ShieldCheck, Lock, Crown, Building2, Ban, RefreshCcw, LogIn, Store as StoreIcon,
+  ShoppingCart, Wallet, Edit3, Bell // <-- ÍCONES DO PDV E CAIXA
 } from 'lucide-react'
 import { supabase } from './lib/supabase/client'
 import * as db from './lib/supabase/data'
@@ -25,13 +26,27 @@ import {
 import { useSession, useStore } from './store'
 import { MovementType, PLANS, PageId, PlanId, Product, Role, SEGMENTS } from './types'
 import { Logo } from './ui'
-import Aurora from './components/Aurora'
+import Aurora from './components/ui/Aurora'
 import ThemeToggle from './components/ThemeToggle'
+// Importe o GlassIcons da pasta ui
+import GlassIcons from './components/ui/GlassIcons'
+// Adicione esta linha no topo, junto com os outros imports:
+import Particles from './components/ui/Particles' 
+
+// IMPORTAÇÃO DAS NOVAS TELAS
+import { PDVScreen } from './features/sales/PDVScreen'
+import { CashRegister } from './features/sales/CashRegister'
+import { SalesHistory } from './features/sales/SalesHistory'
+
+// IMPORTAÇÃO DO REACT BITS
+import SpecularButton from './components/ui/SpecularButton'
 
 const COLORS = ['#1D6FBE', '#06B6D4', '#FFB84D', '#CDA8FF', '#FFABD0', '#1A3A6B']
 
 const DOCK_ITEMS = [
   { id: 'dashboard', label: 'Painel', icon: LayoutDashboard },
+  { id: 'pdv', label: 'Frente de Caixa', icon: ShoppingCart },
+  { id: 'caixa', label: 'Caixa', icon: Wallet },
   { id: 'produtos', label: 'Produtos', icon: Package },
   { id: 'estoque', label: 'Estoque', icon: Layers },
   { id: 'lojas', label: 'Lojas', icon: StoreIcon },
@@ -130,11 +145,10 @@ function Auth() {
     if (mode === 'login') {
       await login(form.email, form.password)
     } else if (mode === 'recuperar') {
-      // Chama a função de recuperação (só precisa do e-mail)
-      const ok = await recover(form.email)
+      const ok = await recover(form.email, form.password)
       if (ok) {
         setSuccessMsg('Enviamos um link de recuperação para o seu e-mail. Verifique a caixa de entrada e o spam.')
-        setMode('login') // Volta pro login mas com a mensagem de sucesso
+        setMode('login')
       }
     } else {
       await register({ ...form })
@@ -148,12 +162,26 @@ function Auth() {
   }
 
   return (
-    <div className="grid min-h-screen place-items-center bg-bg-base dark:bg-[#0A0514] p-4 sm:p-6">
-      <div className="absolute inset-0 opacity-30 pointer-events-none"><Aurora variant="login" /></div>
+    <div className="grid min-h-screen place-items-center bg-bg-base dark:bg-[#0A0514] p-4 sm:p-6 relative">
+      
+      {/* SUBSTITUÍDO PELO PARTICLES DO REACT BITS */}
+      <div className="absolute inset-0 pointer-events-none z-0">
+        <Particles
+          particleColors={['#06B6D4', '#C4B5FD', '#F9A8D4']}
+          particleCount={150}
+          particleSpread={12}
+          speed={0.08}
+          particleBaseSize={80}
+          glow={0.6}
+          twinkle={0.5}
+          moveParticlesOnHover
+          hoverEffect="parallax"
+        />
+      </div>
       
       <motion.div 
         initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-        className="relative z-10 w-full max-w-md rounded-3xl border border-border-subtle dark:border-white/10 bg-white/80 dark:bg-white/5 p-6 sm:p-8 shadow-2xl backdrop-blur-2xl"
+        className="relative z-10 w-full max-w-md rounded-3xl border border-border-subtle dark:border-white/10 bg-white/80 dark:bg-[#16142E]/80 p-6 sm:p-8 shadow-2xl backdrop-blur-2xl"
       >
         <div className="mb-8 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -176,7 +204,6 @@ function Auth() {
           </p>
         </div>
 
-        {/* ABAS (só aparecem se não estiver no modo recuperar) */}
         {mode !== 'recuperar' ? (
           <div className="mb-6 flex rounded-full bg-black/5 dark:bg-black/40 p-1">
             {(['login', 'cadastro'] as const).map((m) => (
@@ -186,11 +213,7 @@ function Auth() {
             ))}
           </div>
         ) : (
-          <button 
-            type="button" 
-            onClick={() => switchMode('login')} 
-            className="mb-6 flex items-center gap-2 text-sm font-semibold text-brand-violet hover:underline transition"
-          >
+          <button type="button" onClick={() => switchMode('login')} className="mb-6 flex items-center gap-2 text-sm font-semibold text-brand-violet hover:underline transition">
             &larr; Voltar para o login
           </button>
         )}
@@ -199,14 +222,10 @@ function Auth() {
           {mode === 'cadastro' && (
             <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="space-y-4">
               <input className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 text-text-primary dark:text-white outline-none focus:border-brand-violet" placeholder="Seu nome completo" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
-              
               <div className="flex items-center gap-2 py-2">
                 <input type="checkbox" id="isInvited" checked={isInvited} onChange={(e) => setIsInvited(e.target.checked)} className="h-4 w-4 rounded border-border-subtle text-brand-violet focus:ring-brand-violet" />
-                <label htmlFor="isInvited" className="text-sm font-medium text-text-secondary dark:text-white/70 cursor-pointer">
-                  Fui convidado por uma empresa
-                </label>
+                <label htmlFor="isInvited" className="text-sm font-medium text-text-secondary dark:text-white/70 cursor-pointer">Fui convidado por uma empresa</label>
               </div>
-
               {!isInvited && (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
                   <input className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 text-text-primary dark:text-white outline-none focus:border-brand-violet" placeholder="Nome da sua empresa" value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} required />
@@ -217,26 +236,17 @@ function Auth() {
 
           <input className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 text-text-primary dark:text-white outline-none focus:border-brand-violet" type="email" placeholder="E-mail" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required />
           
-          {/* SÓ MOSTRA O CAMPO DE SENHA SE NÃO ESTIVER NO MODO RECUPERAR */}
           {mode !== 'recuperar' && (
             <PasswordField className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 text-text-primary dark:text-white outline-none focus:border-brand-violet" placeholder="Senha" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required />
           )}
 
-          {/* LINK DE ESQUECI A SENHA (só no modo login) */}
           {mode === 'login' && (
             <div className="flex justify-end">
-              <button 
-                type="button" 
-                onClick={() => switchMode('recuperar')} 
-                className="text-xs font-semibold text-text-muted hover:text-brand-pink transition"
-              >
-                Esqueci minha senha
-              </button>
+              <button type="button" onClick={() => switchMode('recuperar')} className="text-xs font-semibold text-text-muted hover:text-brand-pink transition">Esqueci minha senha</button>
             </div>
           )}
 
           {error && <div className="rounded-xl border border-danger/30 bg-danger/10 px-4 py-2 text-sm text-danger">{error}</div>}
-          
           {successMsg && <div className="rounded-xl border border-success/30 bg-success/10 px-4 py-2 text-sm text-success">{successMsg}</div>}
 
           <button className="mt-2 w-full rounded-xl bg-brand-gradient py-3 font-bold text-white shadow-[0_0_20px_rgba(196,181,253,0.4)] transition hover:brightness-110" type="submit">
@@ -253,13 +263,12 @@ function Auth() {
    ============================================================ */
 function Shell() {
   const { user, company, notifications } = useSession()
-  const { logout, isImpersonating, stopImpersonation } = useStore() // <-- ADICIONADO AQUI
+  const { logout, isImpersonating, stopImpersonation } = useStore()
   const [page, setPage] = useState<PageId>('dashboard')
   const [q, setQ] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   
-  // Controle do Tour
   const [showTour, setShowTour] = useState(false)
   const [tourStep, setTourStep] = useState(0)
   
@@ -274,7 +283,8 @@ function Shell() {
   useEffect(() => {
     if (showTour) {
       if (tourStep === 3) setPage('produtos')
-      else if (tourStep === 4) setPage('estoque')
+      else if (tourStep === 4) setPage('pdv')
+      else if (tourStep === 5) setPage('estoque')
       else setPage('dashboard')
     }
   }, [tourStep, showTour])
@@ -304,32 +314,25 @@ function Shell() {
   return (
     <div className="relative min-h-screen bg-bg-base dark:bg-[#0A0514] text-text-primary dark:text-white selection:bg-brand-pink/30 overflow-hidden transition-colors duration-500">
       
-      {/* BANNER DE IMPERSONAÇÃO (Fica no topo de tudo) */}
       {isImpersonating && (
         <div className="fixed top-0 inset-x-0 z-[9999] flex items-center justify-between bg-accent px-4 py-2 text-black shadow-lg">
           <div className="flex items-center gap-2 text-sm font-bold">
             <Crown className="h-4 w-4" />
             Modo Visualização: Você está logado como {user?.name}
           </div>
-          <button 
-            onClick={() => stopImpersonation()} 
-            className="rounded-lg bg-black/10 px-4 py-1.5 text-xs font-bold hover:bg-black/20 transition"
-          >
+          <button onClick={() => stopImpersonation()} className="rounded-lg bg-black/10 px-4 py-1.5 text-xs font-bold hover:bg-black/20 transition">
             Sair e Voltar para Admin
           </button>
         </div>
       )}
 
-      {/* Fundo imersivo */}
       <div className="fixed inset-0 z-0 pointer-events-none opacity-40 dark:opacity-40 transition-opacity">
         <Aurora variant="login" />
         <div className="absolute inset-0 bg-gradient-to-t from-bg-base dark:from-[#0A0514] via-transparent to-transparent" />
       </div>
 
-      {/* Top Bar (Glassmorphism) - Ajustado para descer se estiver no modo impersonação */}
       <header className={`fixed inset-x-0 z-40 flex items-center justify-between px-4 sm:px-6 py-4 sm:py-6 pointer-events-none transition-all duration-300 ${isImpersonating ? 'top-10' : 'top-0'}`}>
         
-        {/* Pílula do Logo */}
         <div 
           className={`flex items-center gap-3 pointer-events-auto cursor-pointer px-4 py-2 rounded-2xl transition-transform hover:scale-[1.02] ${glassClasses}`}
           onClick={() => setPage(isSuperAdminNoCompany ? 'super-admin' as any : 'dashboard')}
@@ -343,7 +346,6 @@ function Shell() {
           </div>
         </div>
 
-        {/* Pílula de Ações */}
         <div className={`flex items-center gap-2 pointer-events-auto p-1.5 rounded-2xl ${glassClasses}`}>
           <button onClick={() => setSearchOpen(true)} className="flex items-center gap-2 rounded-xl px-2 sm:px-3 py-1.5 text-sm text-text-muted dark:text-white/70 transition hover:bg-black/5 dark:hover:bg-white/10">
             <Search className="h-4 w-4" />
@@ -357,7 +359,6 @@ function Shell() {
         </div>
       </header>
 
-      {/* Menu do Usuário */}
       <AnimatePresence>
         {menuOpen && (
           <motion.div initial={{ opacity: 0, y: -10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className={`fixed right-4 sm:right-6 z-[1000] w-56 rounded-2xl p-2 ${glassClasses} ${isImpersonating ? 'top-28' : 'top-20 sm:top-24'}`}>
@@ -381,7 +382,6 @@ function Shell() {
         )}
       </AnimatePresence>
 
-      {/* Área de Conteúdo */}
       <main className={`relative z-10 mx-auto max-w-7xl px-4 pb-40 sm:px-6 h-screen overflow-y-auto overflow-x-hidden [&::-webkit-scrollbar]:hidden transition-all duration-300 ${isImpersonating ? 'pt-40 sm:pt-44' : 'pt-32 sm:pt-36'}`}>
         <AnimatePresence mode="wait">
           <motion.div key={page} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.3 }} className="w-full h-full">
@@ -390,6 +390,12 @@ function Shell() {
             ) : (
               <>
                 {page === 'dashboard' && <Dashboard q={q} go={setPage} />}
+                
+                {/* TELAS DE VENDAS E CAIXA */}
+                {page === 'pdv' && <PDVScreen />}
+                {page === 'caixa' && <CashRegister />}
+                {page === 'historico-vendas' && <SalesHistory />}
+                
                 {page === 'produtos' && <Products q={q} />}
                 {page === 'fornecedores' && <Suppliers q={q} />}
                 {page === 'estoque' && <Stock q={q} />}
@@ -409,13 +415,12 @@ function Shell() {
         </AnimatePresence>
       </main>
 
-      {/* Dock de Navegação (Vidro Ultra Realista) */}
       <div className="fixed bottom-4 sm:bottom-6 inset-x-0 z-[999] flex justify-center pointer-events-none px-4">
-      <motion.nav 
-         id="tour-dock"
-          initial={{ y: 50, opacity: 0 }} 
-          animate={{ y: 0, opacity: 1 }} 
-          className="pointer-events-auto flex w-full max-w-lg sm:w-max items-center justify-between sm:justify-start gap-1 sm:gap-2 rounded-[28px] p-2 bg-white/80 dark:bg-[#16142E]/90 backdrop-blur-xl border border-white/50 dark:border-white/10 shadow-2xl"
+<motion.nav 
+  id="tour-dock"
+  initial={{ y: 50, opacity: 0 }} 
+  animate={{ y: 0, opacity: 1 }} 
+  className="pointer-events-auto flex w-full max-w-lg sm:w-max items-center justify-between sm:justify-start gap-1 sm:gap-2 rounded-[32px] p-2 bg-[#16142E]/70 backdrop-blur-2xl border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.5),inset_0_1px_1px_rgba(249,168,212,0.3)] overflow-x-auto [&::-webkit-scrollbar]:hidden"
 >
           {visibleDockItems.map((item) => {
             const Icon = item.icon
@@ -432,7 +437,6 @@ function Shell() {
         </motion.nav>
       </div>
 
-      {/* Busca Global */}
       <AnimatePresence>
         {searchOpen && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[1000] flex items-start justify-center bg-black/40 pt-32 px-4 backdrop-blur-md" onClick={() => setSearchOpen(false)}>
@@ -447,7 +451,6 @@ function Shell() {
         )}
       </AnimatePresence>
 
-      {/* COMPONENTE DO TOUR */}
       {showTour && (
         <TourGuide 
           onClose={() => setShowTour(false)} 
@@ -468,13 +471,25 @@ function Dashboard({ q, go }: { q: string; go: (p: PageId) => void }) {
   const pie = categoryShare(state)
   const item = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0, transition: { type: "spring" as const, stiffness: 300, damping: 24 } } }
 
+  // Configuração dos Ícones de Acesso Rápido
+  const quickActions = [
+    { id: 'pdv', label: 'Frente de Caixa', icon: <ShoppingCart size={24} />, color: 'pink' },
+    { id: 'caixa', label: 'Caixa', icon: <Wallet size={24} />, color: 'blue' },
+    { id: 'produtos', label: 'Produtos', icon: <Package size={24} />, color: 'purple' },
+    { id: 'estoque', label: 'Estoque', icon: <Layers size={24} />, color: 'green' },
+    { id: 'relatorios', label: 'Relatórios', icon: <FileText size={24} />, color: 'orange' },
+    { id: 'equipe', label: 'Equipe', icon: <Users size={24} />, color: 'indigo' },
+  ]
+
   return (
     <motion.div initial="hidden" animate="show" variants={{ show: { transition: { staggerChildren: 0.1 } } }} className="space-y-4 sm:space-y-6">
+      
       <div className="flex flex-col gap-1">
         <h1 className="text-2xl sm:text-3xl font-display font-bold">A máquina tá <span className="text-brand-pink">a todo vapor.</span></h1>
         <p className="text-sm text-text-muted dark:text-white/50">Telemetria do seu negócio hoje.</p>
       </div>
 
+      {/* KPIs */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <motion.div id="tour-kpi" variants={item} className="md:col-span-2 relative overflow-hidden rounded-3xl border border-border-subtle dark:border-white/10 bg-bg-surface/50 dark:bg-white/5 p-5 sm:p-6 backdrop-blur-md transition-colors">
           <div className="absolute top-0 right-0 p-6 opacity-5 dark:opacity-10"><Package className="h-32 w-32" /></div>
@@ -517,18 +532,55 @@ function Dashboard({ q, go }: { q: string; go: (p: PageId) => void }) {
             </ResponsiveContainer>
           </div>
         </motion.div>
-
-        <motion.div variants={item} className="md:col-span-3 rounded-3xl border border-brand-violet/30 bg-brand-violet/10 p-5 sm:p-6 backdrop-blur-md flex items-center justify-between group cursor-pointer" onClick={() => go('insights')}>
-          <div className="flex items-center gap-3 sm:gap-4">
-            <div className="flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-2xl bg-brand-violet/20"><Sparkles className="h-5 w-5 sm:h-6 sm:w-6 text-brand-violet" /></div>
-            <div>
-              <h3 className="text-sm sm:text-base font-bold">O que a IA diz sobre seu estoque?</h3>
-              <p className="text-xs sm:text-sm text-text-muted dark:text-white/60 truncate max-w-[200px] sm:max-w-none">{insights[0]?.title || 'Análise concluída.'}</p>
-            </div>
-          </div>
-          <div className="hidden sm:block text-brand-violet group-hover:translate-x-2 transition-transform">→</div>
-        </motion.div>
       </div>
+
+      {/* NOVA SESSÃO: GLASS ICONS PARA ACESSO RÁPIDO */}
+      <motion.div variants={item} className="py-6 relative flex flex-col items-center justify-center border-t border-border-subtle dark:border-white/10 mt-6">
+        <h2 className="text-xl font-display font-bold mb-8 text-text-primary dark:text-white">Acesso Rápido</h2>
+        
+        <div className="w-full max-w-4xl flex justify-center">
+          <GlassIcons
+            items={quickActions.map(action => ({
+              id: action.id,
+              label: action.label,
+              icon: action.icon,
+              color: action.color,
+              onClick: () => go(action.id as PageId)
+            }))}
+            size={72}           // Tamanho do ícone
+            gap={40}            // Espaçamento
+            columns={6}         // 6 colunas no desktop
+            roundness={0.5}     // Formato do vidro
+            refraction={0.9}    // Força da distorção
+            bevel={0.6}         
+            frost={0.15}        // Desfoque
+            shine={1}           // Brilho da borda
+            tint="#F9A8D4"      // Tinta Rosa da WYNX
+            tintOpacity={0.1}   // Transparência da tinta
+            iconColor="#ffffff" // Cor do ícone
+            plate="tilt"        // Fundo inclinado atrás do vidro
+            tilt={15}           // Inclinação do fundo
+            spread={0.6}        
+            hover="lift"        // Efeito ao passar o mouse (levanta)
+            parallax={1}        // Efeito de mover com o mouse
+            labels="hover"      // Mostra o texto apenas no hover
+            intro               // Animação de entrada
+            theme="dark"
+          />
+        </div>
+      </motion.div>
+
+      {/* CARD DA IA */}
+      <motion.div variants={item} className="rounded-3xl border border-brand-violet/30 bg-brand-violet/10 p-5 sm:p-6 backdrop-blur-md flex items-center justify-between group cursor-pointer" onClick={() => go('insights')}>
+        <div className="flex items-center gap-3 sm:gap-4">
+          <div className="flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-2xl bg-brand-violet/20"><Sparkles className="h-5 w-5 sm:h-6 sm:w-6 text-brand-violet" /></div>
+          <div>
+            <h3 className="text-sm sm:text-base font-bold">O que a IA diz sobre seu estoque?</h3>
+            <p className="text-xs sm:text-sm text-text-muted dark:text-white/60 truncate max-w-[200px] sm:max-w-none">{insights[0]?.title || 'Análise concluída.'}</p>
+          </div>
+        </div>
+        <div className="hidden sm:block text-brand-violet group-hover:translate-x-2 transition-transform">→</div>
+      </motion.div>
     </motion.div>
   )
 }
@@ -549,20 +601,15 @@ function Products({ q }: { q: string }) {
   const [editing, setEditing] = useState<Product | null>(null)
   const list = products.filter((p) => matches(p, q))
 
-  // --- 1. IMPORTAR CSV OU EXCEL ---
   const importFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-
     if (!user || !company) return alert('Sessão inválida.')
-
     const fileExtension = file.name.split('.').pop()?.toLowerCase()
 
     try {
       let rows: any[] = []
-
       if (fileExtension === 'csv') {
-        // ---- LEITURA DE CSV ----
         Papa.parse(file, {
           header: true,
           skipEmptyLines: true,
@@ -572,16 +619,12 @@ function Products({ q }: { q: string }) {
           }
         })
       } else if (fileExtension === 'xlsx' || fileExtension === 'xls') {
-        // ---- LEITURA DE EXCEL ----
         const arrayBuffer = await file.arrayBuffer()
         const workbook = new ExcelJS.Workbook()
         await workbook.xlsx.load(arrayBuffer)
         const worksheet = workbook.worksheets[0]
-
         let headers: string[] = []
         let headerRowIndex = 0
-
-        // Encontra a linha que tem os cabeçalhos reais (pulando a capa bonita)
         worksheet.eachRow((row, rowNumber) => {
           const firstCell = String(row.getCell(1).value || '')
           if (firstCell.includes('Produto') || firstCell.toLowerCase() === 'nome') {
@@ -589,20 +632,14 @@ function Products({ q }: { q: string }) {
             row.eachCell((cell, colNumber) => {
               headers[colNumber] = String(cell.value || '')
             })
-            return false // Para o loop
+            return false
           }
         })
-
-        if (headerRowIndex === 0) {
-          return alert('Cabeçalho não encontrado. Certifique-se de que a planilha tem uma coluna "Produto" ou "Nome".')
-        }
-
-        // Lê os dados a partir da linha seguinte ao cabeçalho
+        if (headerRowIndex === 0) return alert('Cabeçalho não encontrado.')
         worksheet.eachRow((row, rowNumber) => {
           if (rowNumber > headerRowIndex) {
             const rowData: any = {}
             let isEmpty = true
-            
             row.eachCell((cell, colNumber) => {
               const header = headers[colNumber]
               if (header && cell.value !== null && cell.value !== undefined) {
@@ -610,11 +647,9 @@ function Products({ q }: { q: string }) {
                 isEmpty = false
               }
             })
-
             if (!isEmpty) rows.push(rowData)
           }
         })
-
         await processImport(rows)
       } else {
         alert('Formato inválido. Envie um arquivo .csv, .xlsx ou .xls.')
@@ -623,7 +658,6 @@ function Products({ q }: { q: string }) {
       alert('Erro ao ler o arquivo: ' + err.message)
     }
 
-    // Função interna que envia pro banco (usada por CSV e Excel)
     async function processImport(data: any[]) {
       const formatted = data.map(r => ({
         name: r.Nome || r.name || r.Produto || r.produto,
@@ -637,32 +671,19 @@ function Products({ q }: { q: string }) {
       })).filter(p => p.name) 
 
       if (formatted.length === 0) return alert('Nenhum produto válido encontrado.')
-      if (!company) return alert('Empresa não encontrada.')
-      if (!user) return alert('Usuário não encontrado.')
+      if (!company || !user) return alert('Empresa/Usuário não encontrado.')
 
       const r = await db.bulkCreateProducts(company.id, user.id, user.name, formatted)
-      if (r.error) {
-        alert('Erro ao importar para o banco: ' + r.error)
-      } else {
-        alert(`${formatted.length} produtos importados com sucesso!`)
-        window.location.reload()
-      }
+      if (r.error) alert('Erro ao importar para o banco: ' + r.error)
+      else { alert(`${formatted.length} produtos importados!`); window.location.reload() }
     }
   }
 
-  // --- 2. EXPORTAR EXCEL BONITO (ROSA/LILÁS) ---
   const exportBeautifulExcel = async () => {
     const workbook = new ExcelJS.Workbook()
-    const worksheet = workbook.addWorksheet('Catálogo WYNX', {
-      views: [{ state: 'frozen', ySplit: 10 }] 
-    })
-
-    const colorPink = 'FFF9A8D4'      
-    const colorViolet = 'FFC4B5FD'    
-    const colorSoftPink = 'FFFCEFF5'  
-    const colorText = 'FF0A0A0A'      
-
-    // 1. CABEÇALHO
+    const worksheet = workbook.addWorksheet('Catálogo WYNX', { views: [{ state: 'frozen', ySplit: 10 }] })
+    const colorPink = 'FFF9A8D4', colorViolet = 'FFC4B5FD', colorSoftPink = 'FFFCEFF5', colorText = 'FF0A0A0A'
+    
     worksheet.mergeCells('A1:G2')
     const titleCell = worksheet.getCell('A1')
     titleCell.value = 'WYNX — Relatório de Catálogo'
@@ -670,76 +691,43 @@ function Products({ q }: { q: string }) {
     titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: colorPink } }
     titleCell.alignment = { vertical: 'middle', horizontal: 'center' }
 
-    // 2. DADOS DA EMPRESA
     worksheet.addRow([])
     worksheet.addRow(['Empresa:', company?.name || 'N/A', '', 'Emitido por:', user?.name || 'N/A'])
     worksheet.addRow(['Data:', new Date().toLocaleString('pt-BR'), '', 'Plano:', company?.plan?.toUpperCase() || 'N/A'])
     worksheet.addRow(['Equipe:', team.length > 0 ? team.map(t => t.name).join(', ') : 'Nenhum membro'])
-    
     worksheet.getRow(4).font = { bold: true, color: { argb: colorText } }
     worksheet.getRow(5).font = { bold: true, color: { argb: colorText } }
     worksheet.getRow(6).font = { bold: true, color: { argb: colorText } }
 
-    // 3. RESUMO FINANCEIRO
     worksheet.addRow([])
     const kpiRow = worksheet.addRow(['SALDO TOTAL:', formatMoney(kpis.value), '', 'TOTAL ITENS:', kpis.units, '', 'PRODUTOS ATIVOS:', kpis.products])
     kpiRow.font = { bold: true, size: 12, color: { argb: colorText } }
     kpiRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: colorViolet } }
-    
     worksheet.mergeCells(`B${kpiRow.number}:C${kpiRow.number}`)
     worksheet.mergeCells(`E${kpiRow.number}:F${kpiRow.number}`)
 
-    // 4. CABEÇALHO DA TABELA
     worksheet.addRow([]) 
     const headerRow = worksheet.addRow(['Produto', 'SKU', 'Categoria', 'Custo', 'Preço', 'Estoque', 'Total (Custo x Qtd)'])
-    
     headerRow.eachCell((cell) => {
       cell.font = { bold: true, color: { argb: colorText } }
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: colorViolet } }
       cell.alignment = { vertical: 'middle', horizontal: 'center' }
-      cell.border = {
-        top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' }
-      }
+      cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } }
     })
 
-    // 5. PRODUTOS
     list.forEach((p, index) => {
-      const row = worksheet.addRow([
-        p.name, p.sku, p.category, p.cost, p.price, p.qty, p.qty * p.cost
-      ])
-
+      const row = worksheet.addRow([p.name, p.sku, p.category, p.cost, p.price, p.qty, p.qty * p.cost])
       row.getCell(4).numFmt = '"R$" #,##0.00'
       row.getCell(5).numFmt = '"R$" #,##0.00'
       row.getCell(7).numFmt = '"R$" #,##0.00'
       row.getCell(6).alignment = { horizontal: 'center' }
       row.getCell(1).font = { bold: true }
-
-      if (index % 2 === 0) {
-        row.eachCell((cell) => {
-          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: colorSoftPink } }
-        })
-      }
-
-      row.eachCell((cell) => {
-        cell.border = {
-          top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-          bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-          left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-          right: { style: 'thin', color: { argb: 'FFE2E8F0' } }
-        }
-      })
-
-      if (p.qty <= p.minQty) {
-        row.getCell(6).font = { color: { argb: 'FFDC2626' }, bold: true }
-      }
+      if (index % 2 === 0) row.eachCell((cell) => { cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: colorSoftPink } } })
+      row.eachCell((cell) => { cell.border = { top: { style: 'thin', color: { argb: 'FFE2E8F0' } }, bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } }, left: { style: 'thin', color: { argb: 'FFE2E8F0' } }, right: { style: 'thin', color: { argb: 'FFE2E8F0' } } } })
+      if (p.qty <= p.minQty) row.getCell(6).font = { color: { argb: 'FFDC2626' }, bold: true }
     })
 
-    // 6. LARGURA
-    worksheet.columns = [
-      { width: 35 }, { width: 15 }, { width: 20 }, { width: 15 }, { width: 15 }, { width: 10 }, { width: 25 },
-    ]
-
-    // 7. SALVAR
+    worksheet.columns = [{ width: 35 }, { width: 15 }, { width: 20 }, { width: 15 }, { width: 15 }, { width: 10 }, { width: 25 }]
     const buffer = await workbook.xlsx.writeBuffer()
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
     saveAs(blob, `Relatorio_Catalogo_WYNX_${new Date().toISOString().slice(0, 10)}.xlsx`)
@@ -749,29 +737,13 @@ function Products({ q }: { q: string }) {
     <div>
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div><h1 className="text-2xl sm:text-3xl font-display font-bold">Catálogo</h1><p className="text-sm text-text-muted dark:text-white/50">Gerencie suas peças.</p></div>
-        
         <div id="tour-csv" className="flex items-center gap-2 flex-wrap">
-          
-          {/* Exportar */}
-          <button onClick={exportBeautifulExcel} className="flex items-center justify-center gap-2 rounded-xl bg-white/50 dark:bg-white/5 border border-border-subtle dark:border-white/10 px-4 py-2.5 font-bold transition hover:bg-white dark:hover:bg-white/10" title="Exportar Relatório em Excel">
-            <Download className="h-4 w-4" /> Exportar
-          </button>
-
-          {/* Importar */}
-          <label className="flex items-center justify-center gap-2 rounded-xl bg-white/50 dark:bg-white/5 border border-border-subtle dark:border-white/10 px-4 py-2.5 font-bold transition hover:bg-white dark:hover:bg-white/10 cursor-pointer" title="Importar CSV ou Excel">
-            <Upload className="h-4 w-4" /> Importar
-            <input type="file" accept=".csv, .xlsx, .xls" className="hidden" onChange={importFile} />
-          </label>
-
-          {/* Novo */}
-          <button className="flex items-center justify-center gap-2 rounded-xl bg-brand-gradient px-5 py-2.5 font-bold text-white shadow-lg transition hover:scale-105 active:scale-95" onClick={() => { setEditing(null); setOpen(true) }}>
-            <Plus className="h-5 w-5" /> Novo Produto
-          </button>
+          <button onClick={exportBeautifulExcel} className="flex items-center justify-center gap-2 rounded-xl bg-white/50 dark:bg-white/5 border border-border-subtle dark:border-white/10 px-4 py-2.5 font-bold transition hover:bg-white dark:hover:bg-white/10"><Download className="h-4 w-4" /> Exportar</button>
+          <label className="flex items-center justify-center gap-2 rounded-xl bg-white/50 dark:bg-white/5 border border-border-subtle dark:border-white/10 px-4 py-2.5 font-bold transition hover:bg-white dark:hover:bg-white/10 cursor-pointer"><Upload className="h-4 w-4" /> Importar<input type="file" accept=".csv, .xlsx, .xls" className="hidden" onChange={importFile} /></label>
+          <button className="flex items-center justify-center gap-2 rounded-xl bg-brand-gradient px-5 py-2.5 font-bold text-white shadow-lg transition hover:scale-105 active:scale-95" onClick={() => { setEditing(null); setOpen(true) }}><Plus className="h-5 w-5" /> Novo Produto</button>
         </div>
       </div>
-
       {error && <p className="mb-4 text-sm text-danger bg-danger/10 p-3 rounded-lg border border-danger/20">{error}</p>}
-
       <motion.div initial="hidden" animate="show" variants={{ show: { transition: { staggerChildren: 0.05 } } }} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {list.map((p) => (
           <motion.div key={p.id} variants={{ hidden: { opacity: 0, scale: 0.9 }, show: { opacity: 1, scale: 1 } }} className="group relative flex flex-col justify-between overflow-hidden rounded-3xl border border-border-subtle dark:border-white/10 bg-bg-surface/50 dark:bg-[#16142E]/80 p-5 backdrop-blur-md transition-all hover:-translate-y-1 hover:border-brand-violet/30 hover:shadow-2xl">
@@ -795,11 +767,11 @@ function Products({ q }: { q: string }) {
 }
 
 function ProductForm({ product, categories, onClose, onSave }: { product: Product | null; categories: string[]; onClose: () => void; onSave: (data: any) => void }) {
-  const { suppliers } = useSession() // <-- Puxa os fornecedores
+  const { suppliers } = useSession()
   const [form, setForm] = useState({
     name: product?.name || '', sku: product?.sku || '', category: product?.category || categories[0], color: product?.color || '', size: product?.size || '', barcode: product?.barcode || '',
     price: product?.price || 0, cost: product?.cost || 0, qty: product?.qty || 0, minQty: product?.minQty || 3, notes: product?.notes || '',
-    supplierId: product?.supplierId || '' // <-- Adicionado fornecedor no estado
+    supplierId: product?.supplierId || ''
   })
 
   return (
@@ -808,8 +780,6 @@ function ProductForm({ product, categories, onClose, onSave }: { product: Produc
         <div className="flex flex-col gap-1.5 sm:col-span-2"><label className="text-sm font-medium text-text-secondary dark:text-white/70">Nome do produto *</label><input className="rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 outline-none focus:border-brand-violet" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></div>
         <div className="flex flex-col gap-1.5"><label className="text-sm font-medium text-text-secondary dark:text-white/70">Código / SKU *</label><input className="rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 outline-none focus:border-brand-violet" value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })} required /></div>
         <div className="flex flex-col gap-1.5"><label className="text-sm font-medium text-text-secondary dark:text-white/70">Categoria</label><select className="rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 outline-none" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>{categories.map((c) => <option key={c}>{c}</option>)}</select></div>
-        
-        {/* CAMPO DE FORNECEDOR ADICIONADO AQUI */}
         <div className="flex flex-col gap-1.5 sm:col-span-2">
           <label className="text-sm font-medium text-text-secondary dark:text-white/70">Fornecedor</label>
           <select className="rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 outline-none" value={form.supplierId} onChange={(e) => setForm({ ...form, supplierId: e.target.value })}>
@@ -817,7 +787,6 @@ function ProductForm({ product, categories, onClose, onSave }: { product: Produc
             {suppliers?.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
         </div>
-
         <div className="flex flex-col gap-1.5"><label className="text-sm font-medium text-text-secondary dark:text-white/70">Cor</label><input className="rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 outline-none focus:border-brand-violet" value={form.color} onChange={(e) => setForm({ ...form, color: e.target.value })} /></div>
         <div className="flex flex-col gap-1.5"><label className="text-sm font-medium text-text-secondary dark:text-white/70">Tamanho</label><input className="rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 outline-none focus:border-brand-violet" value={form.size} onChange={(e) => setForm({ ...form, size: e.target.value })} /></div>
         <div className="flex flex-col gap-1.5 sm:col-span-2"><label className="text-sm font-medium text-text-secondary dark:text-white/70">Código de barras</label><input className="rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 outline-none focus:border-brand-violet" value={form.barcode} onChange={(e) => setForm({ ...form, barcode: e.target.value })} /></div>
@@ -1070,8 +1039,6 @@ function Team({ q }: { q: string }) {
     setMsg(null)
 
     const cleanEmail = email.trim().toLowerCase()
-
-    // Chama a função RPC que acabamos de criar no banco
     const { data, error } = await supabase.rpc('invite_member_to_company', {
       p_email: cleanEmail,
       p_role: inviteRole,
@@ -1105,8 +1072,6 @@ function Team({ q }: { q: string }) {
 
   return (
     <div className="grid gap-6 lg:grid-cols-3 items-start">
-      
-      {/* Coluna Esquerda: Formulário e Convites Pendentes */}
       <div className="space-y-6">
         <form className="rounded-3xl border border-border-subtle dark:border-white/10 bg-bg-surface/50 dark:bg-white/5 p-6 backdrop-blur-md space-y-4" onSubmit={handleInvite}>
           <div>
@@ -1116,23 +1081,12 @@ function Team({ q }: { q: string }) {
           
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-text-secondary dark:text-white/70">E-mail do colaborador</label>
-            <input 
-              type="email" 
-              className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 text-sm outline-none focus:border-brand-violet" 
-              placeholder="nome@empresa.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required 
-            />
+            <input type="email" className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 text-sm outline-none focus:border-brand-violet" placeholder="nome@empresa.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
           </div>
 
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-text-secondary dark:text-white/70">Permissão</label>
-            <select 
-              className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 text-sm outline-none focus:border-brand-violet" 
-              value={inviteRole}
-              onChange={(e) => setInviteRole(e.target.value as Role)}
-            >
+            <select className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 text-sm outline-none focus:border-brand-violet" value={inviteRole} onChange={(e) => setInviteRole(e.target.value as Role)}>
               <option value="administrador">Administrador (Total)</option>
               <option value="editor">Editor (Operacional)</option>
               <option value="visualizador">Visualizador (Leitura)</option>
@@ -1145,11 +1099,7 @@ function Team({ q }: { q: string }) {
             </motion.div>
           )}
 
-          <button 
-            type="submit" 
-            disabled={loading}
-            className="w-full rounded-xl bg-brand-gradient py-3 text-sm font-bold text-white shadow-lg transition hover:scale-[1.02] disabled:opacity-50 disabled:hover:scale-100 flex justify-center items-center gap-2"
-          >
+          <button type="submit" disabled={loading} className="w-full rounded-xl bg-brand-gradient py-3 text-sm font-bold text-white shadow-lg transition hover:scale-[1.02] disabled:opacity-50 disabled:hover:scale-100 flex justify-center items-center gap-2">
             {loading ? 'Processando...' : <><Plus className="h-4 w-4"/> Adicionar / Convidar</>}
           </button>
         </form>
@@ -1166,9 +1116,7 @@ function Team({ q }: { q: string }) {
                     <p className="text-sm font-medium truncate text-text-primary dark:text-white">{inv.email}</p>
                     <p className="text-[10px] text-text-muted dark:text-white/50 uppercase">{inv.role}</p>
                   </div>
-                  <button onClick={() => handleCancelInvite(inv.id)} className="text-danger hover:bg-danger/20 p-1.5 rounded-lg transition" title="Cancelar convite">
-                    <X className="h-4 w-4" />
-                  </button>
+                  <button onClick={() => handleCancelInvite(inv.id)} className="text-danger hover:bg-danger/20 p-1.5 rounded-lg transition" title="Cancelar convite"><X className="h-4 w-4" /></button>
                 </div>
               ))}
             </div>
@@ -1208,33 +1156,15 @@ function Team({ q }: { q: string }) {
                 <div className="flex items-center gap-2">
                   {iAmAdmin && !isSelf ? (
                     <>
-                      <select 
-                        className="w-full sm:w-auto rounded-xl border border-border-subtle dark:border-white/10 bg-bg-surface dark:bg-black/40 p-2 text-sm outline-none focus:border-brand-violet cursor-pointer" 
-                        value={m.role} 
-                        onChange={(e) => updateMemberRole(m.id, e.target.value as Role)}
-                      >
+                      <select className="w-full sm:w-auto rounded-xl border border-border-subtle dark:border-white/10 bg-bg-surface dark:bg-black/40 p-2 text-sm outline-none focus:border-brand-violet cursor-pointer" value={m.role} onChange={(e) => updateMemberRole(m.id, e.target.value as Role)}>
                         <option value="administrador">Administrador</option>
                         <option value="editor">Editor</option>
                         <option value="visualizador">Visualizador</option>
                       </select>
-                      
-                      <button 
-                        onClick={() => {
-                          if (confirm(`Tem certeza que deseja remover ${m.name} da equipe?`)) {
-                            removeMember(m.id)
-                          }
-                        }}
-                        className="rounded-xl bg-danger/10 p-2 text-danger hover:bg-danger/20 transition"
-                        title="Remover da equipe"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
+                      <button onClick={() => { if (confirm(`Tem certeza que deseja remover ${m.name} da equipe?`)) removeMember(m.id) }} className="rounded-xl bg-danger/10 p-2 text-danger hover:bg-danger/20 transition" title="Remover da equipe"><X className="h-4 w-4" /></button>
                     </>
                   ) : (
-                    <span className={`rounded-xl px-3 py-1.5 text-xs font-bold uppercase tracking-wider ${
-                      m.role === 'administrador' ? 'bg-brand-violet/20 text-brand-violet' :
-                      m.role === 'editor' ? 'bg-brand-cyan/20 text-brand-cyan' : 'bg-black/10 dark:bg-white/10 text-text-muted dark:text-white/50'
-                    }`}>
+                    <span className={`rounded-xl px-3 py-1.5 text-xs font-bold uppercase tracking-wider ${m.role === 'administrador' ? 'bg-brand-violet/20 text-brand-violet' : m.role === 'editor' ? 'bg-brand-cyan/20 text-brand-cyan' : 'bg-black/10 dark:bg-white/10 text-text-muted dark:text-white/50'}`}>
                       {m.role}
                     </span>
                   )}
@@ -1290,14 +1220,9 @@ function Profile() {
       <div className="rounded-3xl border border-danger/30 bg-danger/5 p-6 space-y-4 backdrop-blur-md">
         <div>
           <h3 className="text-lg font-bold text-danger">Zona de Perigo</h3>
-          <p className="text-sm text-danger/70 mt-1">
-            Ações irreversíveis. Se você for o dono da empresa, todos os dados (produtos, movimentações e equipe) serão apagados permanentemente.
-          </p>
+          <p className="text-sm text-danger/70 mt-1">Ações irreversíveis. Se você for o dono da empresa, todos os dados (produtos, movimentações e equipe) serão apagados permanentemente.</p>
         </div>
-        <button 
-          className="rounded-xl border border-danger bg-transparent px-4 py-2 text-sm font-bold text-danger transition hover:bg-danger hover:text-white" 
-          onClick={() => setShowDeleteModal(true)}
-        >
+        <button className="rounded-xl border border-danger bg-transparent px-4 py-2 text-sm font-bold text-danger transition hover:bg-danger hover:text-white" onClick={() => setShowDeleteModal(true)}>
           Excluir minha conta
         </button>
       </div>
@@ -1312,30 +1237,13 @@ function Profile() {
               </div>
               
               <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium text-text-secondary dark:text-white/70">
-                  Digite <strong className="text-danger">EXCLUIR</strong> para confirmar:
-                </label>
-                <input 
-                  className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 outline-none focus:border-danger text-text-primary dark:text-white" 
-                  value={confirmText} 
-                  onChange={(e) => setConfirmText(e.target.value.toUpperCase())} 
-                  placeholder="EXCLUIR"
-                />
+                <label className="text-sm font-medium text-text-secondary dark:text-white/70">Digite <strong className="text-danger">EXCLUIR</strong> para confirmar:</label>
+                <input className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 outline-none focus:border-danger text-text-primary dark:text-white" value={confirmText} onChange={(e) => setConfirmText(e.target.value.toUpperCase())} placeholder="EXCLUIR" />
               </div>
 
               <div className="flex gap-2 justify-end pt-2">
-                <button 
-                  className="rounded-xl px-4 py-2 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/10 transition" 
-                  onClick={() => setShowDeleteModal(false)}
-                  disabled={isDeleting}
-                >
-                  Cancelar
-                </button>
-                <button 
-                  className="rounded-xl bg-danger px-4 py-2 text-sm font-bold text-white transition hover:bg-red-700 disabled:opacity-50 flex items-center gap-2" 
-                  onClick={handleDelete}
-                  disabled={confirmText !== 'EXCLUIR' || isDeleting}
-                >
+                <button className="rounded-xl px-4 py-2 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/10 transition" onClick={() => setShowDeleteModal(false)} disabled={isDeleting}>Cancelar</button>
+                <button className="rounded-xl bg-danger px-4 py-2 text-sm font-bold text-white transition hover:bg-red-700 disabled:opacity-50 flex items-center gap-2" onClick={handleDelete} disabled={confirmText !== 'EXCLUIR' || isDeleting}>
                   {isDeleting ? 'Excluindo...' : 'Excluir Definitivamente'}
                 </button>
               </div>
@@ -1374,9 +1282,7 @@ function Suppliers({ q }: { q: string }) {
                 <p className="font-bold text-base sm:text-lg">{s.name}</p>
                 <p className="text-xs text-text-muted dark:text-white/50">{s.cnpj || 'Sem CNPJ'}</p>
               </div>
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-violet/20 text-brand-violet">
-                <Truck className="h-5 w-5" />
-              </div>
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-violet/20 text-brand-violet"><Truck className="h-5 w-5" /></div>
             </div>
             <div className="flex items-end justify-between">
               <div>
@@ -1446,9 +1352,7 @@ function Stores({ q }: { q: string }) {
                 <p className="font-bold text-base sm:text-lg">{s.name}</p>
                 <p className="text-xs text-text-muted dark:text-white/50 uppercase">{s.type}</p>
               </div>
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-pink/20 text-brand-pink">
-                <StoreIcon className="h-5 w-5" />
-              </div>
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-pink/20 text-brand-pink"><StoreIcon className="h-5 w-5" /></div>
             </div>
             <div className="flex justify-end gap-2 opacity-100 sm:opacity-0 transition-opacity group-hover:opacity-100 mt-4">
               <button className="rounded-lg bg-black/5 dark:bg-white/10 p-2 hover:bg-black/10 dark:hover:bg-white/20" onClick={() => { setEditing(s); setOpen(true) }}><SettingsIcon className="h-4 w-4" /></button>
@@ -1491,31 +1395,27 @@ function TourGuide({ onClose, onStepChange }: { onClose: () => void; onStepChang
   const [step, setStep] = useState(0)
   const [rect, setRect] = useState<DOMRect | null>(null)
 
-  const steps = [
+   const steps = [
     { target: 'body', title: 'Bem-vindo ao WYNX', desc: 'Vamos fazer um tour rápido. O sistema é super intuitivo, mas queremos mostrar o caminho das pedras.' },
     { target: '#tour-kpi', title: 'Seu Pulso Financeiro', desc: 'Aqui você vê o valor total do seu estoque e quantas unidades estão em falta.' },
     { target: '#tour-dock', title: 'Navegação Rápida', desc: 'Use essa Dock flutuante para ir para qualquer tela, como o Catálogo de Produtos.' },
     { target: '#tour-csv', title: 'Planilhas e Relatórios', desc: 'Já tem os produtos no Excel? Importe de uma vez! Ou exporte um relatório lindo para o seu sócio.' },
+    { target: '#tour-customer', title: 'Atendimento Premium', desc: 'No PDV, você pode registrar o nome do cliente para um histórico mais detalhado. O recibo térmico já sai com o nome dele!' },
     { target: '#tour-scanner', title: 'Câmera de Alta Velocidade', desc: 'Esqueça digitar códigos de barras. Use a câmera do celular para dar entrada ou saída em segundos.' },
     { target: 'body', title: 'Tudo pronto!', desc: 'Você já conhece o básico. Clique em começar e domine o seu negócio.' }
   ]
 
   useEffect(() => {
-    // Avisa o Shell para trocar de tela se necessário
     onStepChange(step)
-
-    // Delay para esperar a animação de troca de tela do app (Framer Motion)
     const timer = setTimeout(() => {
       const el = document.querySelector(steps[step].target)
       if (el && steps[step].target !== 'body') {
         setRect(el.getBoundingClientRect())
-        // Rola a tela para o elemento se ele estiver fora da viewport
         el.scrollIntoView({ behavior: 'smooth', block: 'center' })
       } else {
         setRect(null)
       }
     }, 450)
-
     return () => clearTimeout(timer)
   }, [step])
 
@@ -1532,8 +1432,6 @@ function TourGuide({ onClose, onStepChange }: { onClose: () => void; onStepChang
 
   return createPortal(
     <div className="fixed inset-0 z-[2000] pointer-events-none">
-      
-      {/* Overlay com "Buraco" (Spotlight) usando box-shadow gigante no elemento alvo */}
       {rect ? (
         <div 
           className="absolute rounded-2xl pointer-events-auto transition-all duration-500 ease-out"
@@ -1544,13 +1442,12 @@ function TourGuide({ onClose, onStepChange }: { onClose: () => void; onStepChang
             border: '2px solid #F9A8D4',
             borderRadius: '16px'
           }}
-          onClick={next} // Permite clicar no elemento destacado para avançar
+          onClick={next}
         />
       ) : (
         <div className="absolute inset-0 bg-[#0A0514]/75 pointer-events-auto z-[1999]" onClick={next} />
       )}
 
-      {/* Caixinha de Texto Flutuante */}
       <motion.div 
         key={step}
         initial={{ opacity: 0, scale: 0.9, y: 20 }}
@@ -1564,23 +1461,15 @@ function TourGuide({ onClose, onStepChange }: { onClose: () => void; onStepChang
         }}
       >
         <div className="flex items-center gap-3 mb-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-gradient shadow-lg text-white font-bold">
-            {step + 1}
-          </div>
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-gradient shadow-lg text-white font-bold">{step + 1}</div>
           <h3 className="text-lg font-bold text-text-primary dark:text-white">{currentStep.title}</h3>
         </div>
         
-        <p className="text-sm text-text-secondary dark:text-white/70 mb-6">
-          {currentStep.desc}
-        </p>
+        <p className="text-sm text-text-secondary dark:text-white/70 mb-6">{currentStep.desc}</p>
 
         <div className="flex justify-between items-center">
-          <button onClick={() => { localStorage.setItem('wynx_onboarding_done', 'true'); onClose() }} className="text-xs font-semibold text-text-muted hover:text-text-primary dark:text-white/40 dark:hover:text-white transition">
-            Pular tutorial
-          </button>
-          <button onClick={next} className="rounded-xl bg-brand-gradient px-6 py-2.5 text-sm font-bold text-white shadow-lg transition hover:scale-105 active:scale-95">
-            {step === steps.length - 1 ? 'Começar' : 'Entendi'}
-          </button>
+          <button onClick={() => { localStorage.setItem('wynx_onboarding_done', 'true'); onClose() }} className="text-xs font-semibold text-text-muted hover:text-text-primary dark:text-white/40 dark:hover:text-white transition">Pular tutorial</button>
+          <button onClick={next} className="rounded-xl bg-brand-gradient px-6 py-2.5 text-sm font-bold text-white shadow-lg transition hover:scale-105 active:scale-95">{step === steps.length - 1 ? 'Começar' : 'Entendi'}</button>
         </div>
       </motion.div>
     </div>,
@@ -1602,260 +1491,234 @@ function Settings() {
       </div>
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-        
-        {/* Card Empresa */}
         <form className="rounded-3xl border border-border-subtle dark:border-white/10 bg-white dark:bg-[#16142E] p-6 space-y-4 shadow-xl" onSubmit={(e) => { e.preventDefault(); setCompany(form) }}>
-          <h3 className="text-lg font-bold mb-2 flex items-center gap-2">
-            <Building2 className="h-5 w-5 text-brand-violet" /> Empresa
-          </h3>
-          
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-text-muted dark:text-white/50">Nome Fantasia</label>
-            <input className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 outline-none focus:border-brand-violet text-text-primary dark:text-white" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-          </div>
-          
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-text-muted dark:text-white/50">Segmento</label>
-            <select className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 outline-none focus:border-brand-violet text-text-primary dark:text-white" value={form.segment} onChange={(e) => setForm({ ...form, segment: e.target.value })}>
-              {SEGMENTS.map((s) => <option key={s}>{s}</option>)}
-            </select>
-          </div>
-          
+          <h3 className="text-lg font-bold mb-2 flex items-center gap-2"><Building2 className="h-5 w-5 text-brand-violet" /> Empresa</h3>
+          <div className="flex flex-col gap-1.5"><label className="text-sm font-medium text-text-muted dark:text-white/50">Nome Fantasia</label><input className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 outline-none focus:border-brand-violet text-text-primary dark:text-white" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
+          <div className="flex flex-col gap-1.5"><label className="text-sm font-medium text-text-muted dark:text-white/50">Segmento</label><select className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 outline-none focus:border-brand-violet text-text-primary dark:text-white" value={form.segment} onChange={(e) => setForm({ ...form, segment: e.target.value })}>{SEGMENTS.map((s) => <option key={s}>{s}</option>)}</select></div>
           <div className="grid grid-cols-2 gap-4">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-text-muted dark:text-white/50">Cidade</label>
-              <input className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 outline-none focus:border-brand-violet text-text-primary dark:text-white" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-text-muted dark:text-white/50">UF</label>
-              <input className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 outline-none focus:border-brand-violet text-text-primary dark:text-white" value={form.state} onChange={(e) => setForm({ ...form, state: e.target.value })} />
-            </div>
+            <div className="flex flex-col gap-1.5"><label className="text-sm font-medium text-text-muted dark:text-white/50">Cidade</label><input className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 outline-none focus:border-brand-violet text-text-primary dark:text-white" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} /></div>
+            <div className="flex flex-col gap-1.5"><label className="text-sm font-medium text-text-muted dark:text-white/50">UF</label><input className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 outline-none focus:border-brand-violet text-text-primary dark:text-white" value={form.state} onChange={(e) => setForm({ ...form, state: e.target.value })} /></div>
           </div>
-          
           <button className="w-full rounded-xl bg-brand-gradient py-3 font-bold text-white mt-4 hover:scale-[1.02] transition shadow-lg">Salvar Empresa</button>
         </form>
 
-        {/* Card Categorias */}
         <div className="rounded-3xl border border-border-subtle dark:border-white/10 bg-white dark:bg-[#16142E] p-6 space-y-4 shadow-xl">
-          <h3 className="text-lg font-bold mb-2 flex items-center gap-2">
-            <Layers className="h-5 w-5 text-brand-cyan" /> Categorias
-          </h3>
-          
+          <h3 className="text-lg font-bold mb-2 flex items-center gap-2"><Layers className="h-5 w-5 text-brand-cyan" /> Categorias</h3>
           <div className="flex flex-wrap gap-2 mb-4">
-            {categories.map((c) => (
-              <span key={c} className="rounded-full bg-brand-violet/20 border border-brand-violet/30 px-3 py-1 text-sm text-brand-violet font-medium">{c}</span>
-            ))}
+            {categories.map((c) => (<span key={c} className="rounded-full bg-brand-violet/20 border border-brand-violet/30 px-3 py-1 text-sm text-brand-violet font-medium">{c}</span>))}
             {categories.length === 0 && <p className="text-sm text-text-muted">Nenhuma categoria criada.</p>}
           </div>
-          
           <div className="flex gap-2 pt-4 border-t border-border-subtle dark:border-white/10">
             <input className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 outline-none focus:border-brand-violet text-text-primary dark:text-white" value={cat} onChange={(e) => setCat(e.target.value)} placeholder="Nova categoria..." />
             <button type="button" className="rounded-xl bg-brand-gradient px-5 font-bold text-white hover:scale-105 transition shadow-lg" onClick={() => { if (newCategory(cat)) setCat('') }}>Add</button>
           </div>
         </div>
 
-        {/* NOVO CARD: AJUDA E TOUR */}
         <div className="md:col-span-2 rounded-3xl border border-brand-pink/30 bg-brand-pink/5 p-6 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl">
           <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-brand-pink/20 text-brand-pink">
-              <Sparkles className="h-6 w-6" />
-            </div>
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-brand-pink/20 text-brand-pink"><Sparkles className="h-6 w-6" /></div>
             <div>
               <h3 className="text-lg font-bold text-text-primary dark:text-white">Ajuda e Tour</h3>
-              <p className="text-sm text-text-muted dark:text-white/50">
-                A WYNX é intuitiva, mas se quiser rever as dicas principais ou apresentar para alguém, inicie o tour guiado.
-              </p>
+              <p className="text-sm text-text-muted dark:text-white/50">A WYNX é intuitiva, mas se quiser rever as dicas principais ou apresentar para alguém, inicie o tour guiado.</p>
             </div>
           </div>
-          <button 
-            onClick={() => {
-              localStorage.removeItem('wynx_onboarding_done');
-              window.location.reload();
-            }} 
-            className="w-full sm:w-auto shrink-0 rounded-xl bg-brand-gradient px-6 py-3 font-bold text-white transition hover:scale-[1.02] shadow-lg flex items-center justify-center gap-2"
-          >
-            <RefreshCcw className="h-4 w-4" /> Reiniciar Tour
-          </button>
+          <button onClick={() => { localStorage.removeItem('wynx_onboarding_done'); window.location.reload(); }} className="w-full sm:w-auto shrink-0 rounded-xl bg-brand-gradient px-6 py-3 font-bold text-white transition hover:scale-[1.02] shadow-lg flex items-center justify-center gap-2"><RefreshCcw className="h-4 w-4" /> Reiniciar Tour</button>
         </div>
-
       </div>
     </div>
   )
 }
 
-function CheckoutSimulation({ plan, onClose, onSuccess }: { plan: any, onClose: () => void, onSuccess: () => void }) {
-  const [method, setMethod] = useState<'cartao' | 'pix'>('cartao')
-  const [isProcessing, setIsProcessing] = useState(false)
-  const [isSuccess, setIsSuccess] = useState(false)
+function ClientBillingModal({ plan, onClose }: { plan: any, onClose: () => void }) {
+  const [step, setStep] = useState<'day' | 'pix' | 'sent'>('day')
+  const [billingDay, setBillingDay] = useState(10)
+  const [pixData, setPixData] = useState({ key: '', name: '', instructions: '' })
+  const { state } = useStore() // Para pegar a company
+  
+  // Busca os dados reais do Pix no banco
+  useEffect(() => {
+    supabase.from('admin_settings').select('*').eq('id', 1).single().then(({ data }) => {
+      if (data) setPixData({ key: data.pix_key, name: data.pix_receiver_name, instructions: data.pix_instructions })
+    })
+  }, [])
 
-  const formatCard = (v: string) => v.replace(/\D/g, '').replace(/(.{4})/g, '$1 ').trim().slice(0, 19)
-  const formatExpiry = (v: string) => v.replace(/\D/g, '').replace(/(.{2})/, '$1/').slice(0, 5)
-
-  const handlePay = (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsProcessing(true)
-    
-    setTimeout(() => {
-      setIsProcessing(false)
-      setIsSuccess(true)
-      
-      setTimeout(() => {
-        onSuccess()
-      }, 1500)
-    }, 2000)
+  const handleCreateSubscription = async () => {
+    // Aqui chama a RPC create_subscription do Supabase
+    const { error } = await supabase.rpc('create_subscription', {
+      p_plan_id: plan.id,
+      p_billing_day: billingDay,
+      p_company_id: state.companies[0].id
+    })
+    if (error) alert("Erro ao criar assinatura: " + error.message)
+    else setStep('pix')
   }
 
-  return createPortal(
-    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={!isProcessing && !isSuccess ? onClose : undefined} />
-      
-      <motion.div 
-        initial={{ opacity: 0, y: 50, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 20, scale: 0.95 }}
-        className="relative w-full max-w-lg rounded-3xl border border-border-subtle dark:border-white/10 bg-white dark:bg-[#16142E] shadow-2xl overflow-hidden"
-      >
-        <div className="flex items-center justify-between border-b border-border-subtle dark:border-white/10 px-6 py-4 bg-black/5 dark:bg-white/5">
-          <div className="flex items-center gap-2">
-            <Lock className="h-4 w-4 text-success" />
-            <span className="text-sm font-semibold tracking-wide text-text-secondary dark:text-white/70 uppercase">Checkout Seguro</span>
+  return (
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
+      <div className="relative w-full max-w-md bg-[#16142E] border border-white/10 rounded-3xl p-6 shadow-2xl">
+        {step === 'day' && (
+          <div className="space-y-6">
+            <h2 className="text-xl font-bold text-white">Escolha seu dia de vencimento</h2>
+            <p className="text-sm text-white/60">O período de teste é grátis por 30 dias. A primeira cobrança será em:</p>
+            <select 
+              value={billingDay} 
+              onChange={(e) => setBillingDay(Number(e.target.value))}
+              className="w-full bg-white/5 border border-white/10 text-white rounded-xl p-3"
+            >
+              {Array.from({ length: 28 }, (_, i) => i + 1).map(day => (
+                <option key={day} value={day} className="bg-[#16142E]">Dia {day}</option>
+              ))}
+            </select>
+            <button onClick={handleCreateSubscription} className="w-full bg-brand-pink text-black font-bold py-3 rounded-xl">Confirmar Assinatura</button>
           </div>
-          {!isProcessing && !isSuccess && (
-            <button onClick={onClose} className="rounded-full p-2 hover:bg-black/10 dark:hover:bg-white/10 transition">
-              <X className="h-5 w-5" />
-            </button>
-          )}
-        </div>
+        )}
 
-        <div className="p-6">
-          {!isProcessing && !isSuccess && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-              <div className="mb-6 text-center">
-                <p className="text-sm text-text-muted dark:text-white/50">Você está assinando o plano</p>
-                <h2 className="text-2xl font-display font-bold text-brand-violet">{plan.name}</h2>
-                <p className="text-3xl font-black mt-2">{formatMoney(plan.price)}<span className="text-sm font-normal text-text-muted">/mês</span></p>
-              </div>
+        {step === 'pix' && (
+          <div className="space-y-4 text-center">
+            <h2 className="text-xl font-bold text-white">Pague via Pix</h2>
+            <div className="bg-white/5 p-4 rounded-xl space-y-2">
+              <p className="text-xs text-white/50 uppercase">Chave Pix ({plan.name})</p>
+              <p className="text-lg font-mono text-brand-pink">{pixData.key || 'Chave não configurada'}</p>
+              <p className="text-sm text-white">Titular: {pixData.name}</p>
+            </div>
+            
+            {pixData.key ? (
+              <button 
+                onClick={() => {
+                  navigator.clipboard.writeText(pixData.key)
+                  alert("Chave copiada!")
+                }}
+                className="w-full bg-white/10 hover:bg-white/20 text-white py-3 rounded-xl transition"
+              >
+                Copiar Chave Pix
+              </button>
+            ) : (
+              <p className="text-red-400 text-sm">O administrador ainda não configurou a chave Pix.</p>
+            )}
 
-              <div className="flex gap-2 p-1 bg-black/5 dark:bg-black/40 rounded-2xl mb-6">
-                <button onClick={() => setMethod('cartao')} className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium transition ${method === 'cartao' ? 'bg-white dark:bg-white text-text-primary dark:text-black shadow-md' : 'text-text-muted dark:text-white/60 hover:text-text-primary'}`}>
-                  <CreditCard className="h-4 w-4" /> Cartão
-                </button>
-                <button onClick={() => setMethod('pix')} className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium transition ${method === 'pix' ? 'bg-white dark:bg-white text-text-primary dark:text-black shadow-md' : 'text-text-muted dark:text-white/60 hover:text-text-primary'}`}>
-                  <QrCode className="h-4 w-4" /> Pix
-                </button>
-              </div>
+            <div className="pt-4 border-t border-white/10">
+              <label className="block text-sm text-white/60 mb-2">Envie o comprovante após pagar</label>
+              <input type="file" className="w-full text-sm text-white/50 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:bg-brand-pink/20 file:text-brand-pink" />
+              <button onClick={() => setStep('sent')} className="w-full mt-4 bg-brand-pink text-black font-bold py-3 rounded-xl">Já paguei e enviei o comprovante</button>
+            </div>
+          </div>
+        )}
 
-              <form onSubmit={handlePay} className="space-y-4">
-                {method === 'cartao' ? (
-                  <div className="space-y-4">
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-xs font-medium text-text-muted dark:text-white/50 uppercase">Número do Cartão</label>
-                      <input required placeholder="0000 0000 0000 0000" className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 outline-none focus:border-brand-violet" onChange={(e) => e.target.value = formatCard(e.target.value)} />
-                    </div>
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-xs font-medium text-text-muted dark:text-white/50 uppercase">Nome impresso</label>
-                      <input required placeholder="Como está no cartão" className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 outline-none focus:border-brand-violet uppercase" />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-xs font-medium text-text-muted dark:text-white/50 uppercase">Validade</label>
-                        <input required placeholder="MM/AA" className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 outline-none focus:border-brand-violet" onChange={(e) => e.target.value = formatExpiry(e.target.value)} />
-                      </div>
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-xs font-medium text-text-muted dark:text-white/50 uppercase">CVV</label>
-                        <input required type="password" placeholder="123" maxLength={4} className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 outline-none focus:border-brand-violet" />
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center py-6 space-y-4">
-                    <div className="p-4 bg-white rounded-2xl shadow-lg border-4 border-brand-violet">
-                      <svg width="120" height="120" viewBox="0 0 100 100" className="opacity-80">
-                        <rect width="100" height="100" fill="white" />
-                        <path d="M10 10h20v20H10zM70 10h20v20H70zM10 70h20v20H10zM40 10h10v10H40zM50 20h10v10H50zM30 40h10v10H30zM60 40h10v10H60zM40 60h10v10H40zM70 50h10v10H70zM20 50h10v10H20zM50 50h10v10H50zM80 50h10v10H80zM80 70h10v10H80zM50 80h10v10H50zM20 80h10v10H20z" fill="black" />
-                        <path d="M15 15h10v10H15zM75 15h10v10H75zM15 75h10v10H15z" fill="#7C3AED" />
-                      </svg>
-                    </div>
-                    <p className="text-sm text-text-muted dark:text-white/60 text-center max-w-xs">Abra o app do seu banco e escaneie o código acima.</p>
-                  </div>
-                )}
-
-                <button type="submit" className="w-full rounded-xl bg-brand-gradient py-4 font-bold text-white shadow-lg transition hover:scale-[1.02] mt-6 flex items-center justify-center gap-2">
-                  <ShieldCheck className="h-5 w-5" /> Confirmar Pagamento
-                </button>
-              </form>
-            </motion.div>
-          )}
-
-          {isProcessing && (
-            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center justify-center py-16 space-y-4">
-              <div className="h-12 w-12 animate-spin rounded-full border-4 border-brand-violet border-t-transparent" />
-              <h3 className="text-lg font-bold">Processando pagamento...</h3>
-            </motion.div>
-          )}
-
-          {isSuccess && (
-            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center justify-center py-12 space-y-4">
-              <motion.div initial={{ scale: 0 }} animate={{ scale: 1, rotate: 360 }} transition={{ type: 'spring' }}>
-                <CheckCircle2 className="h-20 w-20 text-success" />
-              </motion.div>
-              <h3 className="text-2xl font-display font-bold text-center">Pagamento Aprovado!</h3>
-              <p className="text-sm text-text-muted dark:text-white/50 text-center max-w-xs">Sua conta foi atualizada para o plano <strong className="text-text-primary dark:text-white">{plan.name}</strong>.</p>
-            </motion.div>
-          )}
-        </div>
-      </motion.div>
-    </div>,
-    document.body
+        {step === 'sent' && (
+          <div className="text-center space-y-4">
+            <CheckCircle2 size={48} className="text-brand-pink mx-auto" />
+            <h2 className="text-xl font-bold text-white">Aguardando Confirmação</h2>
+            <p className="text-sm text-white/60">O administrador vai conferir seu comprovante e ativar o plano em breve.</p>
+            <button onClick={onClose} className="w-full bg-white/10 py-3 rounded-xl text-white">Fechar</button>
+          </div>
+        )}
+      </div>
+    </div>
   )
 }
 
 function SuperAdmin() {
-  const resetClientPassword = async (email: string) => {
-  if (!confirm(`Enviar e-mail de recuperação para ${email}?`)) return
-  
-  // Chama a função do Supabase para resetar (ou usa a API admin)
-  const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${window.location.origin}/reset-password`,
-  })
-  
-  if (error) {
-    alert('Erro: ' + error.message)
-  } else {
-    alert('E-mail de recuperação enviado! (Se não chegar, use a alternativa abaixo)')
-  }
-}
   const { user } = useSession()
   const { impersonateUser } = useStore() 
   const [companies, setCompanies] = useState<any[]>([])
   const [logs, setLogs] = useState<any[]>([])
+  const [pendingPayments, setPendingPayments] = useState<any[]>([])
+  const [plans, setPlans] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [filterPlan, setFilterPlan] = useState('todos')
+  
+  const [editingCompany, setEditingCompany] = useState<any>(null)
+  const [selectedPlanId, setSelectedPlanId] = useState('')
+  const [isUpdatingPlan, setIsUpdatingPlan] = useState(false)
+  const [showNotification, setShowNotification] = useState(false)
 
   const loadData = async () => {
     setLoading(true)
     const { data, logs } = await db.loadGlobalAdminData()
     if (data) setCompanies(data)
     if (logs) setLogs(logs)
+    
+    const { data: payments } = await supabase.from('payments').select('*, companies(name)').eq('status', 'waiting_proof').order('created_at', { ascending: false });
+    if (payments) {
+      setPendingPayments(payments);
+      if (payments.length > 0) setShowNotification(true);
+    }
+
+    const { data: plansData } = await supabase.from('plans').select('*').order('price_cents');
+    if (plansData) setPlans(plansData);
     setLoading(false)
   }
 
-  useEffect(() => { loadData() }, [])
+  useEffect(() => {
+    loadData()
+    const interval = setInterval(loadData, 10000)
+    return () => clearInterval(interval)
+  }, [])
 
-  const handleAction = async (companyId: string, plan: string, action: 'cancel' | 'refund' | 'change') => {
-    if (!confirm(`Tem certeza que deseja ${action === 'cancel' ? 'cancelar' : 'reembolsar'} esta assinatura?`)) return
-    await db.adminUpdateCompanyPlan(companyId, plan, action)
-    await loadData()
+const confirmPayment = async (paymentId: string, companyId: string, planId: string) => {
+  if (!confirm("Confirmar PIX e ativar plano do cliente?")) return;
+  try {
+    // 1. Tenta achar o objeto do plano pelo ID ou Slug
+    let planObj = plans.find(p => p.id === planId || p.slug === planId);
+    
+    // 2. Se não achar, tenta achar pelo preço (empresarial/enterprise = 1299)
+    if (!planObj) {
+      const priceMap: Record<string, number> = {
+        'basico': 89.9, 'essencial': 149, 'profissional': 499, 'empresarial': 1299, 'enterprise': 1299
+      };
+      const expectedPrice = priceMap[planId.toLowerCase()];
+      if (expectedPrice) {
+        planObj = plans.find(p => (p.price_cents / 100) === expectedPrice);
+      }
+    }
+
+    // 3. Se ainda não achar, usa o próprio planId (o SQL vai resolver)
+    const enumPlan = planObj ? getEnumPlan(planObj) : planId;
+
+    const { error } = await supabase.rpc('admin_approve_payment', {
+      p_payment_id: paymentId,
+      p_company_id: companyId,
+      p_plan_id: enumPlan
+    });
+    
+    if (error) throw error;
+    alert("Pagamento confirmado e plano ativado!");
+    loadData();
+  } catch (error: any) {
+    alert("Erro ao confirmar: " + error.message);
   }
+}
 
+const handleChangePlan = async () => {
+  if (!editingCompany || !selectedPlanId) return;
+  setIsUpdatingPlan(true);
+  try {
+    const planObj = plans.find(p => p.id === selectedPlanId);
+    const enumPlan = planObj ? getEnumPlan(planObj) : selectedPlanId;
+
+    const { error } = await supabase.rpc('admin_change_plan', {
+      p_company_id: editingCompany.id,
+      p_plan_id: enumPlan
+    });
+    
+    if (error) throw error;
+    alert("Plano atualizado com sucesso!");
+    setEditingCompany(null);
+    loadData();
+  } catch (error: any) {
+    alert("Erro ao mudar plano: " + error.message);
+  } finally {
+    setIsUpdatingPlan(false);
+  }
+}
   const handleToggleStatus = async (companyId: string, currentStatus: string) => {
     if (!confirm(`Deseja realmente ${currentStatus === 'active' ? 'suspender' : 'reativar'} o acesso desta empresa?`)) return
     await db.toggleCompanyStatus(companyId, currentStatus, user?.email || '')
     await loadData()
   }
 
-  // --- Métricas e Filtros ---
   const clientCompanies = companies.filter(c => c.ownerEmail !== 'suportewynx@gmail.com');
-  
   const filteredCompanies = clientCompanies.filter(c => {
     const matchSearch = c.name.toLowerCase().includes(search.toLowerCase()) || c.ownerEmail.toLowerCase().includes(search.toLowerCase());
     const matchPlan = filterPlan === 'todos' || c.plan === filterPlan;
@@ -1863,240 +1726,280 @@ function SuperAdmin() {
   });
 
   const activeCompanies = clientCompanies.filter(c => c.status === 'active');
-  
-  // CORREÇÃO AQUI: Usando os nomes reais do banco (essencial, profissional, empresarial)
   const totalMRR = activeCompanies.reduce((acc, c) => {
-    if (c.plan === 'essencial') return acc + 149
-    if (c.plan === 'profissional') return acc + 499
-    if (c.plan === 'empresarial') return acc + 1299
-    return acc
-  }, 0)
+    if (c.plan === 'basico') return acc + 89.90;
+    if (c.plan === 'essencial') return acc + 149;
+    if (c.plan === 'profissional') return acc + 499;
+    if (c.plan === 'empresarial') return acc + 1299;
+    return acc;
+  }, 0);
 
-  // Dados para o Gráfico de Planos
   const planDistribution = [
     { name: 'Grátis', value: clientCompanies.filter(c => c.plan === 'gratuito').length, color: '#6B7280' },
+    { name: 'Básico', value: clientCompanies.filter(c => c.plan === 'basico').length, color: '#F9A8D4' },
     { name: 'Starter', value: clientCompanies.filter(c => c.plan === 'essencial').length, color: '#06B6D4' },
     { name: 'Business', value: clientCompanies.filter(c => c.plan === 'profissional').length, color: '#C4B5FD' },
     { name: 'Enterprise', value: clientCompanies.filter(c => c.plan === 'empresarial').length, color: '#F5B942' },
   ].filter(p => p.value > 0);
 
-  // Dados fake para o gráfico de crescimento
   const growthData = [
-    { mes: 'Jul', mrr: totalMRR * 0.4 },
-    { mes: 'Ago', mrr: totalMRR * 0.6 },
-    { mes: 'Set', mrr: totalMRR * 0.7 },
-    { mes: 'Out', mrr: totalMRR * 0.9 },
-    { mes: 'Nov', mrr: totalMRR * 0.95 },
-    { mes: 'Dez', mrr: totalMRR },
+    { mes: 'Jul', mrr: totalMRR * 0.4 }, { mes: 'Ago', mrr: totalMRR * 0.6 },
+    { mes: 'Set', mrr: totalMRR * 0.7 }, { mes: 'Out', mrr: totalMRR * 0.9 },
+    { mes: 'Nov', mrr: totalMRR * 0.95 }, { mes: 'Dez', mrr: totalMRR },
   ];
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-24">
-      
-      {/* Header do Adm Supremo */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-3xl border border-accent/20 bg-accent/5 p-6 backdrop-blur-md">
-        <div className="flex items-center gap-4">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-accent/20 text-accent shadow-[0_0_30px_rgba(245,185,66,0.3)]">
-            <Crown className="h-8 w-8" />
-          </div>
-          <div>
-            <h1 className="text-3xl font-display font-black text-accent">Master Control</h1>
-            <p className="text-sm text-text-muted dark:text-white/60">Gestão global de assinaturas e clientes.</p>
-          </div>
+      <AnimatePresence>
+        {showNotification && pendingPayments.length > 0 && (
+          <motion.div initial={{ y: -50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -50, opacity: 0 }} className="fixed top-24 right-8 z-[999] bg-brand-pink text-black px-6 py-4 rounded-2xl shadow-[0_8px_32px_rgba(249,168,212,0.6)] font-bold flex items-center gap-3 cursor-pointer" onClick={() => { setShowNotification(false); document.getElementById('pending-section')?.scrollIntoView({ behavior: 'smooth' }); }}>
+            <Bell className="w-6 h-6 animate-ring" /> {pendingPayments.length} PIX aguardando você!
+            <X size={18} className="ml-2 opacity-50 hover:opacity-100" onClick={(e) => { e.stopPropagation(); setShowNotification(false); }} />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-3xl border border-white/10 bg-[#16142E]/80 p-6 shadow-2xl backdrop-blur-xl relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-accent/10 rounded-full blur-[80px] pointer-events-none" />
+        <div className="flex items-center gap-4 relative z-10">
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-accent/20 text-accent shadow-[0_0_30px_rgba(245,185,66,0.3)] border border-accent/30"><Crown className="h-8 w-8" /></div>
+          <div><h1 className="text-3xl font-display font-black text-accent">Master Control</h1><p className="text-sm text-white/50">Gestão global, financeira e suporte.</p></div>
         </div>
+        <button onClick={loadData} className="relative z-10 flex items-center justify-center gap-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 px-4 py-2.5 font-bold transition text-sm text-white"><RefreshCcw className="h-4 w-4" /> Atualizar Dados</button>
       </div>
 
-      {/* KPIs Globais */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="rounded-3xl border border-border-subtle dark:border-white/10 bg-bg-surface/50 dark:bg-white/5 p-6 backdrop-blur-md">
-          <p className="text-xs font-bold uppercase tracking-wider text-text-muted dark:text-white/50">Receita (MRR)</p>
-          <p className="mt-2 text-3xl font-black text-success">{formatMoney(totalMRR)}</p>
-        </div>
-        <div className="rounded-3xl border border-border-subtle dark:border-white/10 bg-bg-surface/50 dark:bg-white/5 p-6 backdrop-blur-md">
-          <p className="text-xs font-bold uppercase tracking-wider text-text-muted dark:text-white/50">Empresas Ativas</p>
-          <p className="mt-2 text-3xl font-black text-brand-violet">{activeCompanies.length}</p>
-        </div>
-        <div className="rounded-3xl border border-border-subtle dark:border-white/10 bg-bg-surface/50 dark:bg-white/5 p-6 backdrop-blur-md">
-          <p className="text-xs font-bold uppercase tracking-wider text-text-muted dark:text-white/50">Contas Suspensas</p>
-          <p className="mt-2 text-3xl font-black text-danger">{clientCompanies.length - activeCompanies.length}</p>
-        </div>
-        <div className="rounded-3xl border border-border-subtle dark:border-white/10 bg-bg-surface/50 dark:bg-white/5 p-6 backdrop-blur-md">
-          <p className="text-xs font-bold uppercase tracking-wider text-text-muted dark:text-white/50">Total de Usuários</p>
-          <p className="mt-2 text-3xl font-black text-brand-cyan">{clientCompanies.reduce((acc, c) => acc + c.membersCount, 0)}</p>
-        </div>
-      </div>
-
-      {/* Gráficos */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2 rounded-3xl border border-border-subtle dark:border-white/10 bg-bg-surface/50 dark:bg-white/5 p-6 backdrop-blur-md">
-          <h3 className="text-sm font-bold uppercase tracking-wider text-text-muted dark:text-white/50 mb-6">Evolução de Receita (MRR)</h3>
-          <div className="h-56 w-full">
-            <ResponsiveContainer>
-              <BarChart data={growthData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="currentColor" opacity={0.1} />
-                <XAxis dataKey="mes" fontSize={12} stroke="currentColor" opacity={0.5} />
-                <YAxis fontSize={12} stroke="currentColor" opacity={0.5} tickFormatter={(v) => `R$ ${v}`} />
-                <Tooltip 
-                  formatter={(value: number) => formatMoney(value)}
-                  contentStyle={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border-subtle)', borderRadius: '12px', color: 'var(--color-text-primary)' }} 
-                />
-                <Bar dataKey="mrr" fill="#C4B5FD" radius={[6, 6, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        <div className="rounded-3xl border border-border-subtle dark:border-white/10 bg-bg-surface/50 dark:bg-white/5 p-6 backdrop-blur-md">
-          <h3 className="text-sm font-bold uppercase tracking-wider text-text-muted dark:text-white/50 mb-6">Distribuição de Planos</h3>
-          <div className="h-56 w-full flex items-center justify-center">
-            <ResponsiveContainer>
-              <PieChart>
-                <Pie data={planDistribution} dataKey="value" nameKey="name" innerRadius={50} outerRadius={80} stroke="none" paddingAngle={5}>
-                  {planDistribution.map((entry, index) => (
-                    <Cell key={index} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip contentStyle={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border-subtle)', borderRadius: '12px', color: 'var(--color-text-primary)' }} />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="flex flex-wrap justify-center gap-3 mt-4">
-            {planDistribution.map(p => (
-              <div key={p.name} className="flex items-center gap-1.5 text-xs text-text-muted dark:text-white/60">
-                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: p.color }}></span> {p.name} ({p.value})
+      {pendingPayments.length > 0 && (
+        <div id="pending-section" className="rounded-3xl border-2 border-brand-pink/50 bg-brand-pink/5 p-6 backdrop-blur-xl shadow-[0_0_30px_rgba(249,168,212,0.1)]">
+          <h3 className="text-lg font-bold text-brand-pink mb-4 flex items-center gap-2"><Clock className="h-5 w-5" /> Cobranças Aguardando Aprovação ({pendingPayments.length})</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {pendingPayments.map(pay => (
+              <div key={pay.id} className="bg-[#16142E] border border-white/10 p-5 rounded-2xl flex flex-col justify-between shadow-lg">
+                <div>
+                  <p className="font-bold text-white text-lg">{pay.companies?.name}</p>
+                  <p className="text-sm text-white/50">Plano: <span className="text-brand-pink uppercase font-bold">{plans.find(p => p.slug === pay.plan_id || p.id === pay.plan_id)?.name || pay.plan_id}</span></p>
+                  <p className="text-2xl font-black text-brand-pink mt-2">{formatMoney(pay.amount)}</p>
+                  <p className="text-xs text-white/40 mt-1">Solicitado: {new Date(pay.created_at).toLocaleString('pt-BR')}</p>
+                </div>
+                <button onClick={() => confirmPayment(pay.id, pay.company_id, pay.plan_id)} className="mt-4 w-full bg-brand-pink text-black font-bold py-3 rounded-xl hover:scale-[1.02] active:scale-[0.98] transition flex items-center justify-center gap-2"><CheckCircle2 size={18} /> Confirmar PIX</button>
               </div>
             ))}
           </div>
         </div>
+      )}
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl relative overflow-hidden"><div className="absolute top-0 right-0 w-24 h-24 bg-success/10 blur-2xl rounded-full" /><p className="text-xs font-bold uppercase tracking-wider text-white/50">Receita (MRR)</p><p className="mt-2 text-3xl font-black text-success">{formatMoney(totalMRR)}</p></div>
+        <div className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl relative overflow-hidden"><div className="absolute top-0 right-0 w-24 h-24 bg-brand-violet/10 blur-2xl rounded-full" /><p className="text-xs font-bold uppercase tracking-wider text-white/50">Empresas Ativas</p><p className="mt-2 text-3xl font-black text-brand-violet">{activeCompanies.length}</p></div>
+        <div className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl relative overflow-hidden"><div className="absolute top-0 right-0 w-24 h-24 bg-danger/10 blur-2xl rounded-full" /><p className="text-xs font-bold uppercase tracking-wider text-white/50">Contas Suspensas</p><p className="mt-2 text-3xl font-black text-danger">{clientCompanies.length - activeCompanies.length}</p></div>
+        <div className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl relative overflow-hidden"><div className="absolute top-0 right-0 w-24 h-24 bg-brand-cyan/10 blur-2xl rounded-full" /><p className="text-xs font-bold uppercase tracking-wider text-white/50">Total de Usuários</p><p className="mt-2 text-3xl font-black text-brand-cyan">{clientCompanies.reduce((acc, c) => acc + c.membersCount, 0)}</p></div>
       </div>
 
-      {/* Tabela de Clientes e Ações */}
-      <div className="rounded-3xl border border-border-subtle dark:border-white/10 bg-bg-surface/50 dark:bg-white/5 p-6 backdrop-blur-md overflow-hidden">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2 rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
+          <h3 className="text-sm font-bold uppercase tracking-wider text-white/50 mb-6">Evolução de Receita (MRR)</h3>
+          <div className="h-56 w-full"><ResponsiveContainer><BarChart data={growthData}><CartesianGrid strokeDasharray="3 3" stroke="currentColor" opacity={0.1} /><XAxis dataKey="mes" fontSize={12} stroke="currentColor" opacity={0.5} /><YAxis fontSize={12} stroke="currentColor" opacity={0.5} tickFormatter={(v) => `R$ ${v}`} /><Tooltip formatter={(value: number) => formatMoney(value)} contentStyle={{ backgroundColor: '#16142E', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff' }} /><Bar dataKey="mrr" fill="#F9A8D4" radius={[6, 6, 0, 0]} /></BarChart></ResponsiveContainer></div>
+        </div>
+        <div className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
+          <h3 className="text-sm font-bold uppercase tracking-wider text-white/50 mb-6">Distribuição de Planos</h3>
+          <div className="h-56 w-full flex items-center justify-center"><ResponsiveContainer><PieChart><Pie data={planDistribution} dataKey="value" nameKey="name" innerRadius={50} outerRadius={80} stroke="none" paddingAngle={5}>{planDistribution.map((entry, index) => (<Cell key={index} fill={entry.color} />))}</Pie><Tooltip contentStyle={{ backgroundColor: '#16142E', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff' }} /></PieChart></ResponsiveContainer></div>
+          <div className="flex flex-wrap justify-center gap-3 mt-4">{planDistribution.map(p => (<div key={p.name} className="flex items-center gap-1.5 text-xs text-white/60"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: p.color }}></span> {p.name} ({p.value})</div>))}</div>
+        </div>
+      </div>
+
+      <div className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl overflow-hidden">
         <div className="flex flex-col sm:flex-row items-center justify-between mb-6 gap-4">
-          <h3 className="text-lg font-bold flex items-center gap-2">
-            <Building2 className="h-5 w-5 text-brand-pink" /> Gestão de Clientes
-          </h3>
-          
-          {/* Filtros e Busca */}
+          <h3 className="text-lg font-bold flex items-center gap-2 text-white"><Building2 className="h-5 w-5 text-brand-pink" /> Gestão de Clientes</h3>
           <div className="flex flex-col sm:flex-row w-full sm:w-auto gap-2">
-            <input 
-              type="text" 
-              placeholder="Buscar empresa ou e-mail..." 
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full sm:w-64 rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/40 px-4 py-2 text-sm outline-none focus:border-brand-violet"
-            />
-            <select 
-              value={filterPlan} 
-              onChange={(e) => setFilterPlan(e.target.value)}
-              className="rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/40 px-4 py-2 text-sm outline-none focus:border-brand-violet"
-            >
-              <option value="todos">Todos os Planos</option>
-              <option value="gratuito">Gratuito</option>
-              <option value="essencial">Starter (Essencial)</option>
-              <option value="profissional">Business (Profissional)</option>
-              <option value="empresarial">Enterprise (Empresarial)</option>
+            <input type="text" placeholder="Buscar empresa ou e-mail..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full sm:w-64 rounded-xl border border-white/10 bg-black/40 px-4 py-2 text-sm text-white outline-none focus:border-brand-pink" />
+            <select value={filterPlan} onChange={(e) => setFilterPlan(e.target.value)} className="rounded-xl border border-white/10 bg-black/40 px-4 py-2 text-sm text-white outline-none focus:border-brand-pink">
+              <option value="todos">Todos os Planos</option><option value="gratuito">Gratuito</option><option value="basico">Básico</option><option value="essencial">Starter</option><option value="profissional">Business</option><option value="empresarial">Enterprise</option>
             </select>
           </div>
         </div>
-        
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left whitespace-nowrap">
-            <thead className="text-xs uppercase bg-black/5 dark:bg-white/5 text-text-muted dark:text-white/50">
-              <tr>
-                <th className="px-4 py-3 rounded-l-xl">Empresa / Dono</th>
-                <th className="px-4 py-3">Plano</th>
-                <th className="px-4 py-3">Equipe</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Criada em</th>
-                <th className="px-4 py-3 text-right rounded-r-xl">Ações</th>
-              </tr>
-            </thead>
+            <thead className="text-xs uppercase bg-white/5 text-white/50"><tr><th className="px-4 py-3 rounded-l-xl">Empresa / Dono</th><th className="px-4 py-3">Plano</th><th className="px-4 py-3">Equipe</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Criada em</th><th className="px-4 py-3 text-right rounded-r-xl">Ações</th></tr></thead>
             <tbody>
-              {loading ? (
-                <tr><td colSpan={6} className="text-center py-8">Carregando dados globais...</td></tr>
-              ) : filteredCompanies.length === 0 ? (
-                <tr><td colSpan={6} className="text-center py-8 text-text-muted">Nenhuma empresa encontrada.</td></tr>
-              ) : filteredCompanies.map((c) => (
-                <tr key={c.id} className="border-b border-border-subtle dark:border-white/5 last:border-0 hover:bg-black/5 dark:hover:bg-white/5 transition">
-                  <td className="px-4 py-4">
-                    <p className="font-bold text-text-primary dark:text-white">{c.name}</p>
-                    <p className="text-xs text-text-muted dark:text-white/50">{c.ownerName} ({c.ownerEmail})</p>
-                  </td>
-                  <td className="px-4 py-4">
-                    <span className={`px-2.5 py-1 rounded-full text-xs font-bold uppercase ${
-                      c.plan === 'gratuito' ? 'bg-black/10 text-text-muted' :
-                      c.plan === 'essencial' ? 'bg-brand-cyan/20 text-brand-cyan' :
-                      c.plan === 'profissional' ? 'bg-brand-violet/20 text-brand-violet' : 'bg-accent/20 text-accent'
-                    }`}>
-                      {c.plan === 'essencial' ? 'STARTER' : c.plan === 'profissional' ? 'BUSINESS' : c.plan === 'empresarial' ? 'ENTERPRISE' : c.plan}
-                    </span>
-                  </td>
-                  <td className="px-4 py-4 text-text-secondary dark:text-white/70">{c.membersCount} usuários</td>
-                  <td className="px-4 py-4">
-                    <span className={`px-2.5 py-1 rounded-full text-xs font-bold uppercase flex items-center gap-1 w-max ${c.status === 'active' ? 'bg-success/10 text-success' : 'bg-danger/10 text-danger'}`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${c.status === 'active' ? 'bg-success' : 'bg-danger'}`}></span>
-                      {c.status === 'active' ? 'Ativa' : 'Suspensa'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-4 text-text-muted dark:text-white/50">{new Date(c.created_at).toLocaleDateString('pt-BR')}</td>
-                  <td className="px-4 py-4 text-right flex items-center justify-end gap-2">
-                    {/* Ação: Impersonate */}
-                    <button 
-                      onClick={() => {
-                        if (confirm(`Deseja acessar o painel da empresa ${c.name}?`)) {
-                          impersonateUser(c.owner_id) // <-- CHAMADA REAL AQUI
-                        }
-                      }} 
-                      className="p-2 rounded-lg bg-brand-cyan/10 text-brand-cyan hover:bg-brand-cyan/20 transition" 
-                      title="Entrar como Cliente"
-                    >
-                      <LogIn className="h-4 w-4" />
-                    </button>
-                    
-                    {/* Ação: Suspender/Reativar */}
-                    <button onClick={() => handleToggleStatus(c.id, c.status)} className={`p-2 rounded-lg transition ${c.status === 'active' ? 'bg-danger/10 text-danger hover:bg-danger/20' : 'bg-success/10 text-success hover:bg-success/20'}`} title={c.status === 'active' ? 'Suspender Conta' : 'Reativar Conta'}>
-                      {c.status === 'active' ? <Ban className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
-                    </button>
-
-                    {/* Ações Financeiras */}
-                    {c.plan !== 'gratuito' && (
-                      <>
-                        <button onClick={() => handleAction(c.id, c.plan, 'refund')} className="p-2 rounded-lg bg-warning/10 text-warning hover:bg-warning/20 transition" title="Reembolsar">
-                          <RefreshCcw className="h-4 w-4" />
-                        </button>
-                      </>
-                    )}
-                  </td>
-                </tr>
-              ))}
+              {loading ? (<tr><td colSpan={6} className="text-center py-8 text-white/50">Carregando dados globais...</td></tr>) : filteredCompanies.length === 0 ? (<tr><td colSpan={6} className="text-center py-8 text-white/50">Nenhuma empresa encontrada.</td></tr>) : (
+                filteredCompanies.map((c) => (
+                  <tr key={c.id} className="border-b border-white/5 last:border-0 hover:bg-white/5 transition">
+                    <td className="px-4 py-4"><p className="font-bold text-white">{c.name}</p><p className="text-xs text-white/50">{c.ownerName} ({c.ownerEmail})</p></td>
+                    <td className="px-4 py-4">
+                      <button onClick={() => { setEditingCompany(c); setSelectedPlanId(c.plan); }} className={`px-3 py-1.5 rounded-full text-xs font-bold uppercase transition-all duration-300 flex items-center gap-1.5 hover:scale-105 hover:shadow-lg ${c.plan === 'gratuito' ? 'bg-white/10 text-white/70 hover:bg-white/20' : c.plan === 'basico' ? 'bg-brand-pink/20 text-brand-pink hover:bg-brand-pink/30 hover:shadow-[0_0_15px_rgba(249,168,212,0.4)]' : c.plan === 'essencial' ? 'bg-brand-cyan/20 text-brand-cyan hover:bg-brand-cyan/30 hover:shadow-[0_0_15px_rgba(6,182,212,0.4)]' : c.plan === 'profissional' ? 'bg-brand-violet/20 text-brand-violet hover:bg-brand-violet/30 hover:shadow-[0_0_15px_rgba(196,181,253,0.4)]' : 'bg-accent/20 text-accent hover:bg-accent/30 hover:shadow-[0_0_15px_rgba(245,185,66,0.4)]'}`}>
+                        {c.plan} <Edit3 size={12} className="ml-0.5" />
+                      </button>
+                    </td>
+                    <td className="px-4 py-4 text-white/70">{c.membersCount} usuários</td>
+                    <td className="px-4 py-4"><span className={`px-2.5 py-1 rounded-full text-xs font-bold uppercase flex items-center gap-1 w-max ${c.status === 'active' ? 'bg-success/10 text-success' : 'bg-danger/10 text-danger'}`}><span className={`w-1.5 h-1.5 rounded-full ${c.status === 'active' ? 'bg-success' : 'bg-danger'}`}></span>{c.status === 'active' ? 'Ativa' : 'Suspensa'}</span></td>
+                    <td className="px-4 py-4 text-white/50">{new Date(c.created_at).toLocaleDateString('pt-BR')}</td>
+                    <td className="px-4 py-4 text-right flex items-center justify-end gap-2">
+                      <button onClick={() => { if (confirm(`Deseja acessar o painel da empresa ${c.name}?`)) impersonateUser(c.owner_id) }} className="p-2 rounded-lg bg-brand-cyan/10 text-brand-cyan hover:bg-brand-cyan/20 transition" title="Entrar como Cliente"><LogIn className="h-4 w-4" /></button>
+                      <button onClick={() => handleToggleStatus(c.id, c.status)} className={`p-2 rounded-lg transition ${c.status === 'active' ? 'bg-danger/10 text-danger hover:bg-danger/20' : 'bg-success/10 text-success hover:bg-success/20'}`} title={c.status === 'active' ? 'Suspender Conta' : 'Reativar Conta'}>{c.status === 'active' ? <Ban className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}</button>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* Logs do Sistema */}
-      <div className="rounded-3xl border border-border-subtle dark:border-white/10 bg-bg-surface/50 dark:bg-white/5 p-6 backdrop-blur-md">
-        <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-          <FileText className="h-5 w-5 text-brand-cyan" /> Últimas Ações Administrativas
-        </h3>
+      <div className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
+        <h3 className="text-lg font-bold mb-4 flex items-center gap-2 text-white"><FileText className="h-5 w-5 text-brand-cyan" /> Últimas Ações Administrativas</h3>
         <div className="space-y-3">
-          {logs.length === 0 ? (
-            <p className="text-sm text-text-muted">Nenhuma ação registrada.</p>
-          ) : logs.map(log => (
-            <div key={log.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 p-3 rounded-xl border border-border-subtle dark:border-white/5 bg-black/5 dark:bg-black/20 text-sm">
-              <div>
-                <span className="font-bold text-text-primary dark:text-white">{log.action}</span>
-                <span className="text-text-muted dark:text-white/50 ml-2">{log.details}</span>
-              </div>
-              <span className="text-xs text-text-muted dark:text-white/40">{new Date(log.created_at).toLocaleString('pt-BR')}</span>
-            </div>
+          {logs.length === 0 ? (<p className="text-sm text-white/50">Nenhuma ação registrada.</p>) : logs.map(log => (
+            <div key={log.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 p-3 rounded-xl border border-white/5 bg-black/20 text-sm"><div><span className="font-bold text-white">{log.action}</span><span className="text-white/50 ml-2">{log.details}</span></div><span className="text-xs text-white/40">{new Date(log.created_at).toLocaleString('pt-BR')}</span></div>
           ))}
         </div>
       </div>
 
+      {editingCompany && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
+          <motion.div initial={{ scale: 0.95, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} className="relative w-full max-w-md bg-[#0f172a] border border-white/10 rounded-[32px] p-8 shadow-2xl overflow-hidden">
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-32 bg-brand-pink/20 blur-[80px] rounded-full pointer-events-none" />
+            <button onClick={() => setEditingCompany(null)} className="absolute top-6 right-6 p-2 bg-white/5 hover:bg-white/10 rounded-full transition-colors z-10"><X size={20} className="text-white" /></button>
+            <div className="text-center mb-8 relative z-10"><h2 className="text-2xl font-display font-bold text-white">Alterar Plano</h2><p className="text-sm text-white/50 mt-1">Empresa: <span className="text-brand-pink font-medium">{editingCompany.name}</span></p></div>
+            <div className="space-y-3 relative z-10 max-h-[50vh] overflow-y-auto pr-2">
+              {plans.map(plan => (
+                <div key={plan.id} onClick={() => setSelectedPlanId(plan.id)} className={`p-4 rounded-2xl border cursor-pointer transition-all duration-300 relative overflow-hidden ${selectedPlanId === plan.id ? 'bg-brand-pink/10 border-brand-pink/50 shadow-[inset_0_1px_1px_rgba(249,168,212,0.2)]' : 'bg-white/5 border-white/5 hover:bg-white/10'}`}>
+                  {selectedPlanId === plan.id && (<div className="absolute left-0 top-0 bottom-0 w-1 bg-brand-pink" />)}
+                  <div className="flex justify-between items-center">
+                    <div><p className={`font-bold ${selectedPlanId === plan.id ? 'text-brand-pink' : 'text-white'}`}>{plan.name}</p><p className="text-xs text-white/50 mt-1 flex gap-2"><span>{plan.product_limit ? `${plan.product_limit} prod.` : 'Prod. Ilimitados'}</span><span>•</span><span>{plan.user_limit ? `${plan.user_limit} usuários` : 'Usuários Ilimitados'}</span></p></div>
+                    <div className="text-right"><p className={`font-black ${selectedPlanId === plan.id ? 'text-white' : 'text-white/80'}`}>{formatMoney(plan.price_cents / 100)}</p><p className="text-[10px] text-white/50">/mês</p></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-3 mt-8 relative z-10">
+              <button onClick={() => setEditingCompany(null)} className="flex-1 bg-white/5 hover:bg-white/10 text-white py-3.5 rounded-xl font-medium transition">Cancelar</button>
+              <button onClick={handleChangePlan} disabled={isUpdatingPlan || selectedPlanId === editingCompany.plan} className="flex-1 bg-brand-pink text-black py-3.5 rounded-xl font-bold transition hover:scale-[1.02] disabled:opacity-50 disabled:hover:scale-100 flex justify-center items-center gap-2 shadow-[0_0_20px_rgba(249,168,212,0.3)]">{isUpdatingPlan ? 'Salvando...' : 'Confirmar Mudança'}</button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   )
+}
+
+const getEnumPlan = (plan: any) => {
+  // 1. Tenta pelo ID (se for exatamente um dos valores válidos)
+  const validEnums = ['gratuito', 'basico', 'essencial', 'profissional', 'empresarial'];
+  if (validEnums.includes(plan.id)) return plan.id;
+  if (validEnums.includes(plan.slug)) return plan.slug;
+
+  // 2. Fallback: Traduz pelo preço (que é infalível)
+  const price = plan.price_cents / 100;
+  if (price >= 89 && price <= 90) return 'basico';
+  if (price >= 148 && price <= 150) return 'essencial';
+  if (price >= 498 && price <= 500) return 'profissional'; // Aqui resolve o 'business' -> 'profissional'
+  if (price >= 1290 && price <= 1300) return 'empresarial';
+  
+  return 'gratuito'; // Segurança
+};
+
+function PixCheckoutModal({ plan, onClose }: { plan: any, onClose: () => void }) {
+  const { state } = useStore(); 
+  const [step, setStep] = useState<'day' | 'link' | 'done'>('day');
+  const [billingDay, setBillingDay] = useState(10);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const formatPrice = (cents: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cents / 100);
+
+  const getLink = () => {
+    const price = plan.price_cents / 100;
+    const id = String(plan.id).toLowerCase();
+    if (price === 89.9 || price === 89 || id.includes('basico') || id.includes('basic')) return 'https://nubank.com.br/cobrar/7iyotr/6af135f5-64d4-4570-a7d3-69c6659c8ef2';
+    if (price === 149 || id.includes('essencial') || id.includes('starter')) return 'https://nubank.com.br/cobrar/7iyotr/6af13173-d366-4765-b03e-ee1e96fadf9c';
+    if (price === 499 || id.includes('profissional') || id.includes('business')) return 'https://nubank.com.br/cobrar/7iyotr/6af131d3-3b77-45f9-a58b-36163916925d';
+    if (price === 1299 || id.includes('empresarial') || id.includes('enterprise')) return 'https://nubank.com.br/cobrar/7iyotr/6af13211-97d9-423e-881f-4003bb8de23c';
+    return 'https://nubank.com.br/cobrar/7iyotr/6af135f5-64d4-4570-a7d3-69c6659c8ef2';
+  };
+
+const handlePaymentDone = async () => {
+  const companyId = state.companies[0]?.id;
+  if (!companyId) return alert("Erro: Empresa não encontrada.");
+  setIsSubmitting(true);
+
+  try {
+    // Usa a mesma lógica para evitar salvar UUIDs ou slugs errados
+    const price = plan.price_cents / 100;
+    let enumPlan = 'gratuito';
+    if (price >= 89 && price <= 90) enumPlan = 'basico';
+    if (price >= 148 && price <= 150) enumPlan = 'essencial';
+    if (price >= 498 && price <= 500) enumPlan = 'profissional';
+    if (price >= 1290 && price <= 1300) enumPlan = 'empresarial';
+
+    const { error } = await supabase.from('payments').insert([{
+      company_id: companyId,
+      plan_id: enumPlan, // Salva 'profissional' (que o banco aceita)
+      amount: plan.price_cents / 100,
+      status: 'waiting_proof',
+      billing_day: billingDay
+    }]);
+    if (error) throw error;
+    setStep('done');
+  } catch (err: any) {
+    alert("Erro ao registrar pagamento: " + err.message);
+  } finally {
+    setIsSubmitting(false);
+  }
+};
+  return createPortal(
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
+      <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="relative w-full max-w-md bg-[#16142E] border border-white/10 rounded-3xl p-6 shadow-2xl">
+        <button onClick={onClose} className="absolute top-4 right-4 p-2 bg-white/5 hover:bg-white/10 rounded-full transition-colors"><X size={20} /></button>
+
+        {step === 'day' && (
+          <div className="space-y-6">
+            <div className="text-center">
+              <h2 className="text-xl font-bold text-white">Escolha o dia de vencimento</h2>
+              <p className="text-sm text-white/50 mt-1">Plano {plan.name} • {formatPrice(plan.price_cents)}/mês</p>
+            </div>
+            <div className="bg-black/20 p-4 rounded-2xl border border-white/5">
+              <label className="text-xs text-white/50 uppercase font-bold block mb-2">Dia do mês</label>
+              <select value={billingDay} onChange={(e) => setBillingDay(Number(e.target.value))} className="w-full bg-white/5 border border-white/10 text-white rounded-xl p-3 outline-none focus:border-brand-pink">
+                {Array.from({ length: 28 }, (_, i) => i + 1).map(day => (<option key={day} value={day} className="bg-[#16142E]">Dia {day}</option>))}
+              </select>
+            </div>
+            <div className="bg-brand-pink/10 border border-brand-pink/20 p-4 rounded-xl text-center">
+              <p className="text-xs text-brand-pink/80">Período de teste de 30 dias grátis.</p>
+              <p className="text-sm font-bold text-brand-pink mt-1">Primeira cobrança em {billingDay}/12/2026</p>
+            </div>
+            <button onClick={() => setStep('link')} className="w-full bg-brand-pink hover:bg-brand-pink/90 text-black font-bold py-3 rounded-xl transition">Ir para Pagamento</button>
+          </div>
+        )}
+
+        {step === 'link' && (
+          <div className="space-y-6 text-center">
+            <div>
+              <h2 className="text-xl font-bold text-white">Finalize seu Pagamento</h2>
+              <p className="text-sm text-white/50 mt-1">Valor: {formatPrice(plan.price_cents)}</p>
+            </div>
+            <div className="bg-brand-pink/10 border border-brand-pink/30 p-4 rounded-2xl">
+              <p className="text-xs text-white/50 uppercase mb-2">Link de Pagamento Seguro</p>
+              <a href={getLink()} target="_blank" rel="noopener noreferrer" className="block w-full text-brand-pink font-mono text-sm break-all hover:underline">{getLink()}</a>
+            </div>
+            <p className="text-sm text-white/60">Clique no link acima para abrir a página de pagamento no site do Nubank.</p>
+            <div className="pt-2">
+              <button onClick={handlePaymentDone} disabled={isSubmitting} className="w-full bg-brand-pink hover:bg-brand-pink/90 disabled:opacity-50 text-black font-bold py-3 rounded-xl transition text-sm flex justify-center items-center gap-2">
+                {isSubmitting ? 'Registrando...' : 'Já realizei o pagamento'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {step === 'done' && (
+          <div className="text-center space-y-4 py-6">
+            <CheckCircle2 size={48} className="text-brand-pink mx-auto" />
+            <h2 className="text-xl font-bold text-white">Aguardando Confirmação</h2>
+            <p className="text-sm text-white/60">O administrador vai verificar o recebimento e ativar seu plano.</p>
+            <button onClick={onClose} className="w-full bg-white/5 hover:bg-white/10 text-white font-bold py-3 rounded-xl transition">Entendido</button>
+          </div>
+        )}
+      </motion.div>
+    </div>,
+    document.body
+  );
 }
 
 function Billing() {
@@ -2108,31 +2011,27 @@ function Billing() {
   const currentPlan = plans.find(p => p.id === subscription?.plan_id)
   const isTrial = subscription?.status === 'trialing'
   
-  const trialDaysLeft = subscription?.trial_ends_at 
-    ? Math.max(0, Math.ceil((new Date(subscription.trial_ends_at).getTime() - Date.now()) / (1000 * 3600 * 24)))
-    : 0
-
+  const trialDaysLeft = subscription?.trial_ends_at ? Math.max(0, Math.ceil((new Date(subscription.trial_ends_at).getTime() - Date.now()) / (1000 * 3600 * 24))) : 0
   const productsUsed = products.length
   const usersUsed = team.length
 
   const handleUpgrade = async (planId: string) => {
     setLoadingPlan(planId)
     
-    // Simula o tempo de resposta do Asaas (1.5 segundos)
+    // Simula 1 segundo de processamento no banco após o usuário clicar em "Já paguei"
     setTimeout(async () => {
       const success = await changePlan(planId)
       setLoadingPlan(null)
       setShowCheckout(null)
-      
-      if (!success) {
-        alert('Erro ao simular pagamento. Verifique o console.')
-      }
-    }, 1500)
+      if (!success) alert('Erro ao ativar o plano. Verifique o console.')
+    }, 1000)
   }
 
   const formatPrice = (cents: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cents / 100)
   }
+
+  const selectedPlan = plans.find(p => p.id === showCheckout)
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-24">
@@ -2233,29 +2132,16 @@ function Billing() {
         </div>
       </div>
 
-      {/* MODAL DE CHECKOUT SIMULADO */}
-      {showCheckout && (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-white dark:bg-[#16142E] rounded-3xl p-6 w-full max-w-md shadow-2xl border border-border-subtle dark:border-white/10">
-            <h2 className="text-xl font-bold text-center mb-2">Simulação de Checkout</h2>
-            <p className="text-sm text-text-muted text-center mb-6">
-              Você está assinando o plano <strong>{plans.find(p => p.id === showCheckout)?.name}</strong>.
-            </p>
-            
-            <div className="p-4 bg-brand-cyan/10 border border-brand-cyan/20 rounded-xl mb-6 text-sm text-brand-cyan text-center">
-              ⚠️ Integração com Asaas pendente.<br/> Ao confirmar, o plano será ativado para testes.
-            </div>
-
-            <div className="flex gap-2">
-              <button onClick={() => setShowCheckout(null)} className="flex-1 rounded-xl py-3 font-bold text-text-muted hover:bg-black/5 dark:hover:bg-white/5 transition">Cancelar</button>
-              <button onClick={() => handleUpgrade(showCheckout)} disabled={!!loadingPlan} className="flex-[2] rounded-xl bg-brand-gradient py-3 font-bold text-white shadow-lg flex justify-center items-center gap-2">
-                {loadingPlan ? (
-                  <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> Processando...</>
-                ) : 'Confirmar e Ativar'}
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* MODAL DE CHECKOUT PIX */}
+      {showCheckout && selectedPlan && (
+<PixCheckoutModal 
+  plan={{
+    id: selectedPlan.id,
+    name: selectedPlan.name,
+    price_cents: selectedPlan.price_cents
+  }}
+  onClose={() => setShowCheckout(null)}
+/>
       )}
     </div>
   )

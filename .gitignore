@@ -1,6 +1,9 @@
-node_modules
-dist
-release
+node_modules/
+dist/
+release/
+.env
+.env.local
+.vscode/
 .DS_Store
 *.log
-.env*
+src-tauri/target/

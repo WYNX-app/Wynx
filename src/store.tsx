@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { supabase } from './lib/supabase/client'
 import { signIn, signUp, signOut, resetPassword as sbResetPassword } from './lib/supabase/auth'
 import * as db from './lib/supabase/data'
-import { getLocalDb } from './db/database' // <-- BANCO OFFLINE
+import { getLocalDb } from './db/database'
 import {
   emptyState,
   currentUser,
@@ -10,8 +10,61 @@ import {
   generateInsights,
   kpis
 } from './engine'
-import { AppState, MovementType, PlanId, Product, Role } from './types'
+import { AppState, MovementType, PlanId, Product, Role, CashRegister, Sale } from './types'
+import { create } from 'zustand';
 
+// --- ZUSTAND: PDV CART ---
+export type PaymentMethod = 'dinheiro' | 'pix' | 'credito' | 'debito';
+
+export interface CartItem {
+  productId: string;
+  name: string;
+  price: number;
+  quantity: number;
+  stockAvailable: number;
+}
+
+interface PDVState {
+  cart: CartItem[];
+  discount: number;
+  addItem: (item: CartItem) => void;
+  removeItem: (productId: string) => void;
+  updateQuantity: (productId: string, qty: number) => void;
+  clearCart: () => void;
+  setCart: (cart: CartItem[], discount: number) => void;
+  setDiscount: (val: number) => void;
+  getSubtotal: () => number;
+  getTotal: () => number;
+}
+
+export const usePDVStore = create<PDVState>((set, get) => ({
+  cart: [],
+  discount: 0,
+  addItem: (item: CartItem) => set((state: PDVState) => {
+    const existing = state.cart.find(i => i.productId === item.productId);
+    if (existing) {
+      return {
+        cart: state.cart.map(i => i.productId === item.productId 
+          ? { ...i, quantity: i.quantity + 1 } : i)
+      };
+    }
+    return { cart: [...state.cart, { ...item, quantity: 1 }] };
+  }),
+  removeItem: (id: string) => set((state: PDVState) => ({ cart: state.cart.filter(i => i.productId !== id) })),
+  updateQuantity: (id: string, qty: number) => set((state: PDVState) => ({
+    cart: state.cart.map(i => i.productId === id ? { ...i, quantity: qty } : i)
+  })),
+  clearCart: () => set({ cart: [], discount: 0 }),
+  setCart: (cart: CartItem[], discount: number) => set({ cart, discount }),
+  setDiscount: (val: number) => set({ discount: val }),
+  getSubtotal: () => get().cart.reduce((acc: number, item: CartItem) => acc + (item.price * item.quantity), 0),
+  getTotal: () => {
+    const subtotal = get().getSubtotal();
+    return Math.max(0, subtotal - get().discount);
+  }
+}));
+
+// --- CONTEXTO GLOBAL DO APP ---
 type Store = {
   state: AppState
   ready: boolean
@@ -46,6 +99,18 @@ type Store = {
   impersonateUser: (targetUserId: string) => Promise<boolean>
   stopImpersonation: () => Promise<void>
   changePlan: (planId: string) => Promise<boolean>
+  
+  // MÓDULO DE VENDAS E CAIXA
+  currentCashRegister: CashRegister | null;
+  sales: Sale[];
+  heldSales: any[];
+  openCashRegister: (initialAmount: number, notes?: string) => Promise<boolean>;
+  closeCashRegister: (finalAmount: number, notes?: string) => Promise<boolean>;
+  registerCashMovement: (type: 'suprimento' | 'sangria', amount: number, description: string) => Promise<boolean>;
+  finalizeSale: (saleData: any) => Promise<string | null>;
+  cancelSale: (saleId: string, reason: string) => Promise<boolean>;
+  holdSale: (saleData: any) => void;
+  resumeSale: (saleId?: string) => void;
 }
 
 const Ctx = createContext<Store | null>(null)
@@ -62,30 +127,75 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     let cancelled = false
 
     async function boot() {
-      // 1. Inicializa o banco local (Dexie/IndexedDB)
-      const localDb = await getLocalDb()
+      let localDb = null
+      try {
+        localDb = await getLocalDb()
+      } catch (err) {
+        console.error('Erro ao inicializar RxDB:', err)
+      }
 
       const { data: { session } } = await supabase.auth.getSession()
       if (cancelled) return
       
       if (session?.user) {
-        // 2. Carrega os dados do Supabase (Empresa, Planos, etc.)
-        const result = await db.loadCompanyState(session.user.id)
-        if (cancelled) return
-        
-        if (result.state) {
-          // 3. Substitui a lista de produtos e movimentações pelos dados locais (Offline-first)
-          const localProducts = await localDb.products.find().exec()
-          const localMovements = await localDb.movements.find().exec()
+        // 1. Dispara a busca do Supabase e do Banco Local AO MESMO TEMPO
+        const [result, localData] = await Promise.all([
+          db.loadCompanyState(session.user.id),
+          (async () => {
+            if (!localDb) return { products: [], movements: [], cashRegisters: [], sales: [] }
+            try {
+              const [p, m, c, s] = await Promise.all([
+                localDb.products.find().exec(),
+                localDb.movements.find().exec(),
+                localDb.cashRegisters.find().exec(),
+                localDb.sales.find().exec()
+              ])
+              return {
+                products: p.map((x: any) => x.toJSON()),
+                movements: m.map((x: any) => x.toJSON()),
+                cashRegisters: c.map((x: any) => x.toJSON()),
+                sales: s.map((x: any) => x.toJSON())
+              }
+            } catch (err) {
+              console.error('Erro ao ler banco local:', err)
+              return { products: [], movements: [], cashRegisters: [], sales: [] }
+            }
+          })()
+        ])
 
-          // Se o banco local estiver vazio (primeiro acesso), usamos os dados do Supabase
-          const finalProducts = localProducts.length > 0 ? localProducts.map((p: any) => p.toJSON()) : result.state.products
-          const finalMovements = localMovements.length > 0 ? localMovements.map((m: any) => m.toJSON()) : result.state.movements
+        if (cancelled) return
+
+        if (result.state) {
+          const remoteProducts = result.state.products || []
+          const remoteMovements = result.state.movements || []
+          const remoteCash = result.state.cashRegisters || []
+          const remoteSales = result.state.sales || []
+
+          // 2. MERGE INTELIGENTE: Se o local tiver mais dados, usa ele. 
+          // Se o local estiver vazio ou tiver menos que o Supabase, usa o Supabase.
+          const finalProducts = localData.products.length >= remoteProducts.length 
+            ? localData.products 
+            : remoteProducts;
+
+          const finalMovements = localData.movements.length >= remoteMovements.length 
+            ? localData.movements 
+            : remoteMovements;
+
+          // Para caixa, o local tem prioridade para não fechar sozinho
+          const finalCash = localData.cashRegisters.length > 0 
+            ? localData.cashRegisters 
+            : remoteCash;
+
+          const finalSales = localData.sales.length >= remoteSales.length 
+            ? localData.sales 
+            : remoteSales;
 
           setState({
             ...result.state,
             products: finalProducts,
             movements: finalMovements,
+            cashRegisters: finalCash,
+            sales: finalSales,
           })
         }
       }
@@ -98,7 +208,25 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       async (_event, session) => {
         if (session?.user) {
           const result = await db.loadCompanyState(session.user.id)
-          if (result.state) setState(result.state)
+          const remoteState = result.state
+
+          if (remoteState) {
+            setState(prev => {
+              const hasOpenCashLocal = prev.cashRegisters?.some(c => c.status === 'open');
+              const hasOpenCashRemote = remoteState.cashRegisters?.some(c => c.status === 'open');
+              
+              // 3. PROTEÇÃO: Se o Supabase retornar vazio, mantém o que está na tela
+              return {
+                ...prev, 
+                ...remoteState, 
+                products: (remoteState.products && remoteState.products.length > 0) ? remoteState.products : prev.products,
+                movements: (remoteState.movements && remoteState.movements.length > 0) ? remoteState.movements : prev.movements,
+                cashRegisters: (hasOpenCashLocal && !hasOpenCashRemote) ? prev.cashRegisters : remoteState.cashRegisters || [],
+                sales: (remoteState.sales && remoteState.sales.length > 0) ? remoteState.sales : prev.sales,
+                cashMovements: (remoteState.cashMovements && remoteState.cashMovements.length > 0) ? remoteState.cashMovements : prev.cashMovements,
+              }
+            })
+          }
         } else {
           setState(emptyState())
         }
@@ -136,11 +264,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       
       const localProducts = await localDb.products.find().exec()
       const localMovements = await localDb.movements.find().exec()
+      const localCashRegisters = await localDb.cashRegisters.find().exec()
+      const localSales = await localDb.sales.find().exec()
 
       setState({
         ...result.state,
         products: localProducts.length > 0 ? localProducts.map((p: any) => p.toJSON()) : result.state.products,
         movements: localMovements.length > 0 ? localMovements.map((m: any) => m.toJSON()) : result.state.movements,
+        cashRegisters: localCashRegisters.length > 0 ? localCashRegisters.map((c: any) => c.toJSON()) : result.state.cashRegisters,
+        sales: localSales.length > 0 ? localSales.map((s: any) => s.toJSON()) : result.state.sales,
       })
       setError(null)
       return true
@@ -158,19 +290,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       return true
     },
 
-recover: async (email) => {
-  const { error: err } = await sbResetPassword(email)
-  if (err) { setError(err); return false }
-  setError(null)
-  return true
-},
+    recover: async (email) => {
+      const { error: err } = await sbResetPassword(email)
+      if (err) { setError(err); return false }
+      setError(null)
+      return true
+    },
 
     logout: () => {
       signOut()
       setState(emptyState())
     },
 
-    // --- OFFLINE: SALVAR PRODUTO (RXDB) ---
     saveProduct: (input) => {
       const user = currentUser(state)
       const company = currentCompany(state)
@@ -207,7 +338,6 @@ recover: async (email) => {
             await localDb.products.insert(productData)
           }
 
-          // Atualiza a tela na hora (Optimistic UI)
           setState(prev => {
             const exists = prev.products.find(p => p.id === productId)
             if (exists) {
@@ -223,7 +353,6 @@ recover: async (email) => {
       return true
     },
 
-    // --- OFFLINE: REMOVER PRODUTO (RXDB) ---
     removeProduct: (id) => {
       const user = currentUser(state)
       if (!user) return false
@@ -236,7 +365,6 @@ recover: async (email) => {
       return true
     },
 
-    // --- OFFLINE: MOVIMENTAÇÃO (RXDB) ---
     move: (input) => {
       const user = currentUser(state)
       const company = currentCompany(state)
@@ -278,7 +406,6 @@ recover: async (email) => {
           await localDb.movements.insert(movementData)
           await localDb.products.upsert({ ...product, qty: next, updatedAt: new Date().toISOString() })
 
-          // Atualiza a tela na hora
           setState(prev => ({
             ...prev,
             movements: [movementData as any, ...prev.movements],
@@ -291,7 +418,6 @@ recover: async (email) => {
       return true
     },
 
-    // --- RESTANTE DAS FUNÇÕES (ONLINE / SUPABASE DIRETO) ---
     invite: async () => { return false },
 
     setRole: (userId, role) => {
@@ -501,6 +627,344 @@ recover: async (email) => {
       setIsImpersonating(false)
       setOriginalUserId(null)
     },
+
+    // ==========================================
+    // MÓDULO DE VENDAS E CAIXA (COM PROTEÇÃO)
+    // ==========================================
+    
+    currentCashRegister: state.cashRegisters?.find((c: CashRegister) => c.status === 'open') || null,
+    sales: state.sales || [],
+    heldSales: state.heldSales || [],
+
+    openCashRegister: async (initialAmount, notes) => {
+      const user = currentUser(state);
+      const company = currentCompany(state);
+      if (!user || !company) return false;
+
+      try {
+        const localDb = await getLocalDb();
+        const newRegister: CashRegister = {
+          id: crypto.randomUUID(),
+          companyId: company.id,
+          userId: user.id,
+          status: 'open',
+          initialAmount,
+          openedAt: new Date().toISOString(),
+          notes
+        };
+
+        await localDb.cashRegisters.insert(newRegister);
+        
+        setState(prev => ({
+          ...prev,
+          cashRegisters: [newRegister, ...(prev.cashRegisters || [])]
+        }));
+
+        // Falha silenciosa no Supabase para não travar
+        supabase.from('cash_registers').insert([newRegister]).then(({ error }) => {
+          if (error) console.warn('Aviso: Supabase recusou o caixa. O offline-first continua funcionando.', error);
+        });
+        
+        return true;
+      } catch (err: any) {
+        setError(err.message);
+        return false;
+      }
+    },
+
+    registerCashMovement: async (type, amount, description) => {
+      const user = currentUser(state);
+      const company = currentCompany(state);
+      const currentCash = state.cashRegisters?.find((c: CashRegister) => c.status === 'open');
+      if (!user || !company || !currentCash) return false;
+
+      try {
+        const localDb = await getLocalDb();
+        const movement = {
+          id: crypto.randomUUID(),
+          cashRegisterId: currentCash.id,
+          companyId: company.id,
+          type,
+          amount,
+          description,
+          userId: user.id,
+          createdAt: new Date().toISOString()
+        };
+
+        await localDb.cashMovements.insert(movement);
+
+        setState(prev => ({
+          ...prev,
+          cashMovements: [movement, ...(prev.cashMovements || [])]
+        }));
+
+        supabase.from('cash_movements').insert([movement]).then(({ error }) => {
+          if (error) console.warn('Aviso: Supabase recusou a movimentação.', error);
+        });
+        return true;
+      } catch (err: any) {
+        setError(err.message);
+        return false;
+      }
+    },
+
+    finalizeSale: async (saleData) => {
+      const user = currentUser(state);
+      const company = currentCompany(state);
+      const currentCash = state.cashRegisters?.find((c: CashRegister) => c.status === 'open');
+      
+      if (!user || !company || !currentCash) {
+        setError('Caixa fechado ou sessão inválida.');
+        return null;
+      }
+
+      try {
+        const localDb = await getLocalDb();
+        const saleId = crypto.randomUUID();
+        
+        const newSale: Sale = {
+          id: saleId,
+          companyId: company.id,
+          cashRegisterId: currentCash.id,
+          userId: user.id,
+          userName: user.name,
+          customerName: saleData.customerName || '',
+          status: 'completed',
+          subtotal: saleData.subtotal,
+          discount: saleData.discount,
+          total: saleData.total,
+          items: saleData.items,
+          payments: saleData.payments,
+          createdAt: new Date().toISOString()
+        };
+
+        await localDb.sales.insert(newSale);
+
+        const newMovements: any[] = [];
+        const updatedProducts = state.products.map(p => {
+          const item = saleData.items.find((i: any) => i.productId === p.id);
+          if (item) {
+            const nextQty = p.qty - item.quantity;
+            newMovements.push({
+              id: crypto.randomUUID(),
+              companyId: company.id,
+              productId: p.id,
+              productName: p.name,
+              type: 'venda',
+              qty: item.quantity,
+              resultingQty: nextQty,
+              note: `Venda #${saleId.slice(0,6)}`,
+              userId: user.id,
+              userName: user.name,
+              createdAt: new Date().toISOString()
+            });
+            return { ...p, qty: nextQty, updatedAt: new Date().toISOString() };
+          }
+          return p;
+        });
+
+        for (const p of updatedProducts) {
+           const original = state.products.find(op => op.id === p.id);
+           if (original && original.qty !== p.qty) {
+               await localDb.products.upsert(p);
+           }
+        }
+        for (const m of newMovements) {
+           await localDb.movements.insert(m);
+        }
+
+        setState(prev => ({
+          ...prev,
+          sales: [newSale, ...(prev.sales || [])],
+          products: updatedProducts,
+          movements: [...newMovements, ...prev.movements]
+        }));
+
+        supabase.rpc('finalize_sale', {
+          p_cash_register_id: currentCash.id,
+          p_customer_name: saleData.customerName || null,
+          p_total: saleData.total,
+          p_subtotal: saleData.subtotal,
+          p_discount: saleData.discount,
+          p_items: JSON.stringify(saleData.items),
+          p_payments: JSON.stringify(saleData.payments)
+        }).then(({ error }) => {
+          if (error) console.warn('Aviso: Supabase recusou a venda, mas o offline-first já salvou.', error);
+        });
+
+        return saleId;
+      } catch (err: any) {
+        setError('Erro ao finalizar venda: ' + err.message);
+        return null;
+      }
+    },
+
+    holdSale: (saleData) => {
+      const user = currentUser(state);
+      const company = currentCompany(state);
+      if (!user || !company) return;
+
+      const newHeldSale = {
+        id: crypto.randomUUID(),
+        companyId: company.id,
+        userId: user.id,
+        userName: user.name,
+        customerName: saleData.customerName || '',
+        items: saleData.items,
+        subtotal: saleData.subtotal,
+        discount: saleData.discount,
+        total: saleData.total,
+        createdAt: new Date().toISOString(),
+      };
+
+      setState(prev => ({
+        ...prev,
+        heldSales: [newHeldSale, ...(prev.heldSales || [])]
+      }));
+      
+      usePDVStore.setState({ cart: [], discount: 0 });
+    },
+
+    resumeSale: (saleId) => {
+      const held = saleId 
+        ? state.heldSales?.find((s: any) => s.id === saleId)
+        : state.heldSales?.[0];
+
+      if (!held) {
+        setError('Nenhuma venda suspensa encontrada.');
+        return;
+      }
+
+      usePDVStore.setState({ 
+        cart: held.items, 
+        discount: held.discount 
+      });
+
+      setState(prev => ({
+        ...prev,
+        heldSales: (prev.heldSales || []).filter((s: any) => s.id !== held.id)
+      }));
+    },
+
+    closeCashRegister: async (finalAmount, notes) => {
+      const user = currentUser(state);
+      const currentCash = state.cashRegisters?.find((c: CashRegister) => c.status === 'open');
+      if (!user || !currentCash) return false;
+
+      try {
+        const localDb = await getLocalDb();
+        
+        const salesInCash = (state.sales || [])
+          .filter((s: Sale) => s.cashRegisterId === currentCash.id && s.status === 'completed')
+          .reduce((acc: number, sale: Sale) => {
+            const cashPayment = sale.payments.find((p: any) => p.method === 'dinheiro');
+            return acc + (cashPayment ? cashPayment.amount : 0);
+          }, 0);
+
+        const suprimentos = (state.cashMovements || [])
+          .filter((m: any) => m.cashRegisterId === currentCash.id && m.type === 'suprimento')
+          .reduce((acc: number, m: any) => acc + m.amount, 0);
+
+        const sangrias = (state.cashMovements || [])
+          .filter((m: any) => m.cashRegisterId === currentCash.id && m.type === 'sangria')
+          .reduce((acc: number, m: any) => acc + m.amount, 0);
+
+        const expectedAmount = currentCash.initialAmount + salesInCash + suprimentos - sangrias;
+        const discrepancy = finalAmount - expectedAmount;
+        
+        const updatedRegister: CashRegister = {
+          ...currentCash,
+          status: 'closed',
+          closedAt: new Date().toISOString(),
+          finalAmount,
+          expectedAmount,
+          discrepancy,
+          notes: notes || currentCash.notes
+        };
+
+        await localDb.cashRegisters.upsert(updatedRegister);
+
+        setState(prev => ({
+          ...prev,
+          cashRegisters: (prev.cashRegisters || []).map((c: CashRegister) => c.id === currentCash.id ? updatedRegister : c)
+        }));
+
+        supabase.from('cash_registers').update(updatedRegister).eq('id', currentCash.id).then(({ error }) => {
+          if (error) console.warn('Aviso: Supabase recusou o fechamento, mas o local já registrou.', error);
+        });
+        return true;
+      } catch (err: any) {
+        setError(err.message);
+        return false;
+      }
+    },
+
+    cancelSale: async (saleId, reason) => {
+      const user = currentUser(state);
+      if (!user) return false;
+
+      try {
+        const localDb = await getLocalDb();
+        const saleToCancel = state.sales?.find((s: Sale) => s.id === saleId);
+        if (!saleToCancel || saleToCancel.status === 'cancelled') return false;
+
+        const updatedSale = {
+          ...saleToCancel,
+          status: 'cancelled' as const,
+          cancelledAt: new Date().toISOString(),
+          cancelReason: reason
+        };
+
+        await localDb.sales.upsert(updatedSale);
+
+        const newMovements: any[] = [];
+        const updatedProducts = state.products.map(p => {
+          const item = saleToCancel.items.find((i: any) => i.productId === p.id);
+          if (item) {
+            const nextQty = p.qty + item.quantity;
+            newMovements.push({
+              id: crypto.randomUUID(),
+              companyId: saleToCancel.companyId,
+              productId: p.id,
+              productName: p.name,
+              type: 'devolucao',
+              qty: item.quantity,
+              resultingQty: nextQty,
+              note: `Cancelamento Venda #${saleId.slice(0,6)}`,
+              userId: user.id,
+              userName: user.name,
+              createdAt: new Date().toISOString()
+            });
+            return { ...p, qty: nextQty, updatedAt: new Date().toISOString() };
+          }
+          return p;
+        });
+
+        for (const p of updatedProducts) {
+           const original = state.products.find(op => op.id === p.id);
+           if (original && original.qty !== p.qty) await localDb.products.upsert(p);
+        }
+        for (const m of newMovements) {
+           await localDb.movements.insert(m);
+        }
+
+        setState(prev => ({
+          ...prev,
+          sales: (prev.sales || []).map((s: Sale) => s.id === saleId ? updatedSale : s),
+          products: updatedProducts,
+          movements: [...newMovements, ...prev.movements]
+        }));
+
+        supabase.from('sales').update(updatedSale).eq('id', saleId).then(({ error }) => {
+          if (error) console.warn('Aviso: Supabase recusou o cancelamento, mas o local já registrou.', error);
+        });
+        return true;
+      } catch (err: any) {
+        setError('Erro ao cancelar venda: ' + err.message);
+        return false;
+      }
+    }
+
   }), [state, ready, error, isImpersonating, originalUserId])
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>

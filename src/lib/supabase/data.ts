@@ -123,6 +123,10 @@ export async function loadCompanyState(
       current_period_end: subscriptionRes.data.current_period_end
     } : null,
 
+        cashRegisters: [],
+    sales: [],
+    cashMovements: [],
+
     sessionUserId: userId,
   };
 
