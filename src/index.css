@@ -489,7 +489,8 @@ html.dark .field:focus {
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    /* Força o fundo escuro da WYNX e o texto claro */
+    @apply bg-[#0A0514] text-white;
   }
   html {
     @apply font-sans;

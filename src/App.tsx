@@ -6,14 +6,14 @@ import Papa from 'papaparse'
 import { Upload, Download } from 'lucide-react'
 import { PasswordField } from './components/PasswordField'
 import { Scanner } from './components/Scanner'
-import { FormEvent, useEffect, useState } from 'react'
+import { FormEvent, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence, useScroll, useMotionValueEvent } from 'framer-motion'
 import { 
   X, LayoutDashboard, Package, Layers, History as HistoryIcon,
   FileText, Users, Settings as SettingsIcon, LogOut, Search, Sparkles, Plus, Minus, Scan,
   CreditCard, QrCode, CheckCircle2, ShieldCheck, Lock, Crown, Building2, Ban, RefreshCcw, LogIn, Store as StoreIcon,
-  ShoppingCart, Wallet, Edit3, Bell // <-- ÍCONES DO PDV E CAIXA
+  ShoppingCart, Wallet, Edit3, Bell, Trash2 // <-- ÍCONES DO PDV E CAIXA
 } from 'lucide-react'
 import { supabase } from './lib/supabase/client'
 import * as db from './lib/supabase/data'
@@ -23,7 +23,8 @@ import {
 import {
   categoryShare, formatDate, formatMoney, labelMovement, salesByDay, topProducts
 } from './engine'
-import { useSession, useStore } from './store'
+// DEPOIS:
+import { useSession, useStore, usePDVStore } from './store'
 import { MovementType, PLANS, PageId, PlanId, Product, Role, SEGMENTS } from './types'
 import { Logo } from './ui'
 import Aurora from './components/ui/Aurora'
@@ -162,9 +163,9 @@ function Auth() {
   }
 
   return (
-    <div className="grid min-h-screen place-items-center bg-bg-base dark:bg-[#0A0514] p-4 sm:p-6 relative">
+    <div className="flex min-h-[100dvh] w-full items-center justify-center bg-[#0A0514] p-4 sm:p-6 relative overflow-hidden">
       
-      {/* SUBSTITUÍDO PELO PARTICLES DO REACT BITS */}
+      {/* Partículas de fundo */}
       <div className="absolute inset-0 pointer-events-none z-0">
         <Particles
           particleColors={['#06B6D4', '#C4B5FD', '#F9A8D4']}
@@ -179,25 +180,26 @@ function Auth() {
         />
       </div>
       
+      {/* Card forçado no modo escuro premium */}
       <motion.div 
         initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-        className="relative z-10 w-full max-w-md rounded-3xl border border-border-subtle dark:border-white/10 bg-white/80 dark:bg-[#16142E]/80 p-6 sm:p-8 shadow-2xl backdrop-blur-2xl"
+        className="relative z-10 w-full max-w-md rounded-3xl border border-white/10 bg-[#16142E]/80 p-6 sm:p-8 shadow-2xl backdrop-blur-2xl"
       >
         <div className="mb-8 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Logo className="h-10 w-10" />
-            <span className="font-display text-2xl font-bold text-text-primary dark:text-white">WYNX</span>
+            <Logo className="h-10 w-10 text-white" /> 
+            <span className="font-display text-2xl font-bold text-white">WYNX</span>
           </div>
           <ThemeToggle />
         </div>
 
         <div className="mb-6">
-          <h2 className="text-xl font-semibold text-text-primary dark:text-white">
+          <h2 className="text-xl font-semibold text-white">
             {mode === 'login' && 'Bem-vindo de volta.'}
             {mode === 'cadastro' && 'Comece agora.'}
             {mode === 'recuperar' && 'Recuperar senha.'}
           </h2>
-          <p className="mt-1 text-sm text-text-muted dark:text-white/50">
+          <p className="mt-1 text-sm text-white/50">
             {mode === 'login' && 'O estoque não vai se controlar sozinho.'}
             {mode === 'cadastro' && 'Crie sua conta ou aceite um convite.'}
             {mode === 'recuperar' && 'Informe seu e-mail para enviarmos o link.'}
@@ -205,15 +207,15 @@ function Auth() {
         </div>
 
         {mode !== 'recuperar' ? (
-          <div className="mb-6 flex rounded-full bg-black/5 dark:bg-black/40 p-1">
+          <div className="mb-6 flex rounded-full bg-black/40 p-1">
             {(['login', 'cadastro'] as const).map((m) => (
-              <button key={m} type="button" className={`flex-1 rounded-full py-2 text-sm font-medium transition ${mode === m ? 'bg-white dark:bg-white text-black shadow-sm' : 'text-text-muted dark:text-white/60 hover:text-text-primary dark:hover:text-white'}`} onClick={() => switchMode(m)}>
+              <button key={m} type="button" className={`flex-1 rounded-full py-2 text-sm font-medium transition ${mode === m ? 'bg-white text-black shadow-sm' : 'text-white/60 hover:text-white'}`} onClick={() => switchMode(m)}>
                 {m === 'login' ? 'Entrar' : 'Criar conta'}
               </button>
             ))}
           </div>
         ) : (
-          <button type="button" onClick={() => switchMode('login')} className="mb-6 flex items-center gap-2 text-sm font-semibold text-brand-violet hover:underline transition">
+          <button type="button" onClick={() => switchMode('login')} className="mb-6 flex items-center gap-2 text-sm font-semibold text-brand-pink hover:underline transition">
             &larr; Voltar para o login
           </button>
         )}
@@ -221,33 +223,33 @@ function Auth() {
         <form className="space-y-4" onSubmit={submit}>
           {mode === 'cadastro' && (
             <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="space-y-4">
-              <input className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 text-text-primary dark:text-white outline-none focus:border-brand-violet" placeholder="Seu nome completo" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
+              <input className="w-full rounded-xl border border-white/10 bg-black/20 p-3 text-white placeholder-white/40 outline-none focus:border-brand-pink transition-colors" placeholder="Seu nome completo" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
               <div className="flex items-center gap-2 py-2">
-                <input type="checkbox" id="isInvited" checked={isInvited} onChange={(e) => setIsInvited(e.target.checked)} className="h-4 w-4 rounded border-border-subtle text-brand-violet focus:ring-brand-violet" />
-                <label htmlFor="isInvited" className="text-sm font-medium text-text-secondary dark:text-white/70 cursor-pointer">Fui convidado por uma empresa</label>
+                <input type="checkbox" id="isInvited" checked={isInvited} onChange={(e) => setIsInvited(e.target.checked)} className="h-4 w-4 rounded border-white/10 text-brand-pink focus:ring-brand-pink" />
+                <label htmlFor="isInvited" className="text-sm font-medium text-white/70 cursor-pointer">Fui convidado por uma empresa</label>
               </div>
               {!isInvited && (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
-                  <input className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 text-text-primary dark:text-white outline-none focus:border-brand-violet" placeholder="Nome da sua empresa" value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} required />
+                  <input className="w-full rounded-xl border border-white/10 bg-black/20 p-3 text-white placeholder-white/40 outline-none focus:border-brand-pink transition-colors" placeholder="Nome da sua empresa" value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} required />
                 </motion.div>
               )}
             </motion.div>
           )}
 
-          <input className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 text-text-primary dark:text-white outline-none focus:border-brand-violet" type="email" placeholder="E-mail" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required />
+          <input className="w-full rounded-xl border border-white/10 bg-black/20 p-3 text-white placeholder-white/40 outline-none focus:border-brand-pink transition-colors" type="email" placeholder="E-mail" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required />
           
           {mode !== 'recuperar' && (
-            <PasswordField className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 text-text-primary dark:text-white outline-none focus:border-brand-violet" placeholder="Senha" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required />
+            <PasswordField className="w-full rounded-xl border border-white/10 bg-black/20 p-3 text-white placeholder-white/40 outline-none focus:border-brand-pink transition-colors" placeholder="Senha" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required />
           )}
 
           {mode === 'login' && (
             <div className="flex justify-end">
-              <button type="button" onClick={() => switchMode('recuperar')} className="text-xs font-semibold text-text-muted hover:text-brand-pink transition">Esqueci minha senha</button>
+              <button type="button" onClick={() => switchMode('recuperar')} className="text-xs font-semibold text-white/50 hover:text-brand-pink transition">Esqueci minha senha</button>
             </div>
           )}
 
-          {error && <div className="rounded-xl border border-danger/30 bg-danger/10 px-4 py-2 text-sm text-danger">{error}</div>}
-          {successMsg && <div className="rounded-xl border border-success/30 bg-success/10 px-4 py-2 text-sm text-success">{successMsg}</div>}
+          {error && <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-400">{error}</div>}
+          {successMsg && <div className="rounded-xl border border-green-500/30 bg-green-500/10 px-4 py-2 text-sm text-green-400">{successMsg}</div>}
 
           <button className="mt-2 w-full rounded-xl bg-brand-gradient py-3 font-bold text-white shadow-[0_0_20px_rgba(196,181,253,0.4)] transition hover:brightness-110" type="submit">
             {mode === 'login' ? 'Acessar Sistema' : mode === 'cadastro' ? (isInvited ? 'Aceitar Convite' : 'Iniciar Jornada') : 'Enviar link de recuperação'}
@@ -264,6 +266,7 @@ function Auth() {
 function Shell() {
   const { user, company, notifications } = useSession()
   const { logout, isImpersonating, stopImpersonation } = useStore()
+  const { isDockHidden } = usePDVStore()
   const [page, setPage] = useState<PageId>('dashboard')
   const [q, setQ] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
@@ -273,6 +276,23 @@ function Shell() {
   const [tourStep, setTourStep] = useState(0)
   
   const unread = notifications.filter((n) => !n.read).length
+
+  // --- CONTROLE DE SCROLL NATIVO (FRAMER MOTION) ---
+  const mainRef = useRef<HTMLElement>(null)
+  const { scrollY } = useScroll({ container: mainRef })
+  const [isDockScrolled, setIsDockScrolled] = useState(false)
+
+  useMotionValueEvent(scrollY, "change", (latest) => {
+    const previous = scrollY.getPrevious() || 0;
+    // Se desceu mais de 20px, esconde
+    if (latest > previous && latest > 20) {
+      setIsDockScrolled(true);
+    } 
+    // Se subiu qualquer coisa, mostra
+    else if (latest < previous) {
+      setIsDockScrolled(false);
+    }
+  });
 
   useEffect(() => {
     if (!localStorage.getItem('wynx_onboarding_done')) {
@@ -382,7 +402,11 @@ function Shell() {
         )}
       </AnimatePresence>
 
-      <main className={`relative z-10 mx-auto max-w-7xl px-4 pb-40 sm:px-6 h-screen overflow-y-auto overflow-x-hidden [&::-webkit-scrollbar]:hidden transition-all duration-300 ${isImpersonating ? 'pt-40 sm:pt-44' : 'pt-32 sm:pt-36'}`}>
+      {/* MANTIDO O REF APENAS, O HOOK FAZ O RESTO */}
+      <main 
+        ref={mainRef}
+        className={`relative z-10 mx-auto max-w-7xl px-4 pb-40 sm:px-6 h-screen overflow-y-auto overflow-x-hidden [&::-webkit-scrollbar]:hidden transition-all duration-300 ${isImpersonating ? 'pt-40 sm:pt-44' : 'pt-32 sm:pt-36'}`}
+      >
         <AnimatePresence mode="wait">
           <motion.div key={page} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.3 }} className="w-full h-full">
             {isSuperAdminNoCompany ? (
@@ -390,17 +414,14 @@ function Shell() {
             ) : (
               <>
                 {page === 'dashboard' && <Dashboard q={q} go={setPage} />}
-                
-                {/* TELAS DE VENDAS E CAIXA */}
                 {page === 'pdv' && <PDVScreen />}
                 {page === 'caixa' && <CashRegister />}
                 {page === 'historico-vendas' && <SalesHistory />}
-                
                 {page === 'produtos' && <Products q={q} />}
                 {page === 'fornecedores' && <Suppliers q={q} />}
                 {page === 'estoque' && <Stock q={q} />}
                 {page === 'relatorios' && <Reports q={q} />}
-                {page === 'historico' && <History q={q} />}
+                {page === 'historico' && <HistoryTab q={q} />}
                 {page === 'equipe' && <Team q={q} />}
                 {page === 'configuracoes' && <Settings />}
                 {page === 'perfil' && <Profile />}
@@ -416,12 +437,17 @@ function Shell() {
       </main>
 
       <div className="fixed bottom-4 sm:bottom-6 inset-x-0 z-[999] flex justify-center pointer-events-none px-4">
-<motion.nav 
-  id="tour-dock"
-  initial={{ y: 50, opacity: 0 }} 
-  animate={{ y: 0, opacity: 1 }} 
-  className="pointer-events-auto flex w-full max-w-lg sm:w-max items-center justify-between sm:justify-start gap-1 sm:gap-2 rounded-[32px] p-2 bg-[#16142E]/70 backdrop-blur-2xl border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.5),inset_0_1px_1px_rgba(249,168,212,0.3)] overflow-x-auto [&::-webkit-scrollbar]:hidden"
->
+        <motion.nav 
+          id="tour-dock"
+          initial={{ y: 50, opacity: 0 }} 
+          animate={{ 
+            /* AQUI: Checa os dois estados (modal aberto OU scroll para baixo) */
+            y: (isDockHidden || isDockScrolled) ? 150 : 0,
+            opacity: (isDockHidden || isDockScrolled) ? 0 : 1 
+          }} 
+          transition={{ type: "spring", stiffness: 300, damping: 30 }}
+          className="pointer-events-auto flex w-full max-w-lg sm:w-max items-center justify-between sm:justify-start gap-1 sm:gap-2 rounded-[32px] p-2 bg-white/70 dark:bg-[#16142E]/70 backdrop-blur-2xl border border-white/50 dark:border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.08),inset_0_1px_1px_rgba(255,255,255,0.8)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.5),inset_0_1px_1px_rgba(249,168,212,0.3)] overflow-x-auto [&::-webkit-scrollbar]:hidden"
+        >
           {visibleDockItems.map((item) => {
             const Icon = item.icon
             const isActive = page === item.id
@@ -591,106 +617,160 @@ function matches(p: Product, q: string) {
   return normalize([p.name, p.sku, p.category, p.color, p.size, p.barcode].join(' ')).includes(s)
 }
 
-/* ============================================================
-   PRODUTOS
-   ============================================================ */
 function Products({ q }: { q: string }) {
   const { saveProduct, removeProduct, error } = useStore()
-  const { products, categories, user, company, team, kpis } = useSession() 
+  const { products, categories, user, company, team, kpis, plans, subscription } = useSession()
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Product | null>(null)
   const list = products.filter((p) => matches(p, q))
 
-  const importFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    if (!user || !company) return alert('Sessão inválida.')
+  const [isDragging, setIsDragging] = useState(false)
+  const [toast, setToast] = useState<{ type: 'success' | 'error', message: string } | null>(null)
+
+  const showToast = (type: 'success' | 'error', message: string) => {
+    setToast({ type, message })
+    setTimeout(() => setToast(null), 4000)
+  }
+
+  const currentPlan = plans.find(p => p.id === subscription?.plan_id) || plans.find(p => p.id === company?.plan) || plans[0]
+  const productLimit = currentPlan?.product_limit
+  const currentCount = products.length
+  const isLimitReached = productLimit !== null && productLimit !== undefined && currentCount >= productLimit
+  const usagePercentage = productLimit ? (currentCount / productLimit) * 100 : 0
+
+  const parseMoney = (val: any) => {
+    if (val === null || val === undefined) return 0;
+    const str = String(val).replace(/[^\d,.-]/g, '').replace(/\./g, '').replace(',', '.');
+    const num = parseFloat(str);
+    return isNaN(num) ? 0 : num;
+  }
+
+  const downloadTemplate = async () => {
+    const workbook = new ExcelJS.Workbook()
+    const worksheet = workbook.addWorksheet('Modelo WYNX')
+    worksheet.addRow(['Nome', 'SKU', 'Categoria', 'Preço', 'Custo', 'Estoque', 'Mínimo', 'Código de Barras'])
+    worksheet.addRow(['Ex: Teclado Mecânico', 'TEC-001', 'Periféricos', '199.90', '120.00', '10', '2', '7891234567890'])
+    worksheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } }
+    worksheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF9A8D4' } }
+    worksheet.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' }
+    worksheet.columns = [{ width: 30 }, { width: 15 }, { width: 20 }, { width: 15 }, { width: 15 }, { width: 10 }, { width: 10 }, { width: 20 }]
+    const buffer = await workbook.xlsx.writeBuffer()
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+    saveAs(blob, 'Modelo_Importacao_WYNX.xlsx')
+    showToast('success', 'Modelo baixado com sucesso!')
+  }
+
+  const processFile = async (file: File) => {
+    if (isLimitReached) return showToast('error', `Limite de ${productLimit} produtos atingido no seu plano.`);
+    if (file.size === 0) return showToast('error', 'O arquivo selecionado está vazio.');
+    if (!user || !company) return showToast('error', 'Sessão inválida.');
+    
     const fileExtension = file.name.split('.').pop()?.toLowerCase()
 
     try {
-      let rows: any[] = []
+      let rawRows: any[][] = []
       if (fileExtension === 'csv') {
         Papa.parse(file, {
-          header: true,
-          skipEmptyLines: true,
+          header: false, skipEmptyLines: 'greedy',
           complete: async (results) => {
-            rows = results.data as any[]
-            await processImport(rows)
+            rawRows = results.data as any[][]
+            await processBlindImport(rawRows)
           }
         })
       } else if (fileExtension === 'xlsx' || fileExtension === 'xls') {
+        if (fileExtension === 'xls') return showToast('error', 'O formato antigo .xls não é suportado. Salve como .xlsx.');
         const arrayBuffer = await file.arrayBuffer()
         const workbook = new ExcelJS.Workbook()
-        await workbook.xlsx.load(arrayBuffer)
+        try { await workbook.xlsx.load(arrayBuffer) } 
+        catch (excelError) { return showToast('error', 'Não foi possível ler a planilha. O arquivo pode estar corrompido.'); }
+        
         const worksheet = workbook.worksheets[0]
-        let headers: string[] = []
-        let headerRowIndex = 0
-        worksheet.eachRow((row, rowNumber) => {
-          const firstCell = String(row.getCell(1).value || '')
-          if (firstCell.includes('Produto') || firstCell.toLowerCase() === 'nome') {
-            headerRowIndex = rowNumber
-            row.eachCell((cell, colNumber) => {
-              headers[colNumber] = String(cell.value || '')
-            })
-            return false
-          }
+        if (!worksheet) return showToast('error', 'Nenhuma aba encontrada no arquivo.');
+        worksheet.eachRow((row) => {
+          const rowData: any[] = []
+          row.eachCell({ includeEmpty: true }, (cell) => { rowData.push(cell.value) })
+          if (rowData.some(v => v !== null && v !== '')) rawRows.push(rowData)
         })
-        if (headerRowIndex === 0) return alert('Cabeçalho não encontrado.')
-        worksheet.eachRow((row, rowNumber) => {
-          if (rowNumber > headerRowIndex) {
-            const rowData: any = {}
-            let isEmpty = true
-            row.eachCell((cell, colNumber) => {
-              const header = headers[colNumber]
-              if (header && cell.value !== null && cell.value !== undefined) {
-                rowData[header] = cell.value
-                isEmpty = false
-              }
-            })
-            if (!isEmpty) rows.push(rowData)
-          }
-        })
-        await processImport(rows)
+        await processBlindImport(rawRows)
       } else {
-        alert('Formato inválido. Envie um arquivo .csv, .xlsx ou .xls.')
+        showToast('error', 'Formato inválido. Envie um arquivo .csv ou .xlsx.')
       }
     } catch (err: any) {
-      alert('Erro ao ler o arquivo: ' + err.message)
+      showToast('error', 'Erro inesperado ao ler o arquivo: ' + err.message)
     }
 
-    async function processImport(data: any[]) {
-      const formatted = data.map(r => ({
-        name: r.Nome || r.name || r.Produto || r.produto,
-        sku: r.SKU || r.sku,
-        category: r.Categoria || r.category,
-        price: parseFloat(String(r['Preço'] || r.price || 0).replace(',', '.')),
-        cost: parseFloat(String(r.Custo || r.cost || 0).replace(',', '.')),
-        qty: parseInt(String(r.Estoque || r.qty || 0), 10),
-        minQty: parseInt(String(r['Mínimo'] || r.minQty || 0), 10),
-        barcode: String(r['Código_Barras'] || r.barcode || '')
-      })).filter(p => p.name) 
-
-      if (formatted.length === 0) return alert('Nenhum produto válido encontrado.')
-      if (!company || !user) return alert('Empresa/Usuário não encontrado.')
-
-      const r = await db.bulkCreateProducts(company.id, user.id, user.name, formatted)
-      if (r.error) alert('Erro ao importar para o banco: ' + r.error)
-      else { alert(`${formatted.length} produtos importados!`); window.location.reload() }
+    async function processBlindImport(rows: any[][]) {
+      if (rows.length === 0) return showToast('error', 'O arquivo está vazio.')
+      const aliases = {
+        name: ['nome', 'produto', 'item', 'descri', 'peça', 'peca', 'titulo', 'título'],
+        sku: ['sku', 'codigo', 'código', 'ref', 'referencia', 'referência'],
+        category: ['categoria', 'grupo', 'tipo'],
+        price: ['preço', 'preco', 'valor', 'venda', 'p.venda'],
+        cost: ['custo', 'compra', 'p.custo'],
+        qty: ['estoque', 'qtd', 'quantidade', 'saldo'],
+        minQty: ['minimo', 'mínimo', 'min', 'alerta'],
+        barcode: ['barras', 'codigo barras', 'ean', 'upc', 'gtin']
+      }
+      const colMap: Record<string, number> = {}
+      let headerRowIndex = -1
+      for (let i = 0; i < Math.min(rows.length, 10); i++) {
+        const row = rows[i]
+        let matches = 0
+        row.forEach((cell, index) => {
+          const val = String(cell || '').toLowerCase().trim()
+          if (!val) return
+          for (const [key, terms] of Object.entries(aliases)) {
+            if (terms.some(t => val.includes(t)) && colMap[key] === undefined) {
+              colMap[key] = index; matches++
+            }
+          }
+        })
+        if (colMap['name'] !== undefined && matches >= 2) { headerRowIndex = i; break; }
+      }
+      if (headerRowIndex === -1) return showToast('error', 'Não identificamos as colunas. Use o botão "Baixar Modelo".');
+      const dataRows = rows.slice(headerRowIndex + 1)
+      const formatted = dataRows.map(r => ({
+        name: r[colMap['name']] ? String(r[colMap['name']]).trim() : '',
+        sku: r[colMap['sku']] ? String(r[colMap['sku']]) : '',
+        category: r[colMap['category']] ? String(r[colMap['category']]) : 'Geral',
+        price: parseMoney(r[colMap['price']]),
+        cost: parseMoney(r[colMap['cost']]),
+        qty: parseInt(String(r[colMap['qty']] || 0).replace(/\D/g, ''), 10) || 0,
+        minQty: parseInt(String(r[colMap['minQty']] || 0).replace(/\D/g, ''), 10) || 0,
+        barcode: r[colMap['barcode']] ? String(r[colMap['barcode']]) : ''
+      })).filter(p => p.name.length > 0)
+      
+      if (formatted.length === 0) return showToast('error', 'Nenhum produto válido encontrado. Verifique a coluna "Nome".');
+      if (productLimit !== null && productLimit !== undefined) {
+        const remainingSlots = Math.max(0, productLimit - currentCount)
+        if (currentCount + formatted.length > productLimit) {
+          return showToast('error', `Limite excedido! Você só tem espaço para ${remainingSlots} produtos.`);
+        }
+      }
+      const r = await db.bulkCreateProducts(company!.id, user!.id, user!.name, formatted)
+      if (r.error) showToast('error', 'Erro ao salvar no banco: ' + r.error)
+      else { showToast('success', `${formatted.length} produtos importados!`); setTimeout(() => window.location.reload(), 1500) }
     }
   }
+
+  const onDragOver = (e: React.DragEvent) => { e.preventDefault(); if (!isLimitReached) setIsDragging(true); };
+  const onDragLeave = (e: React.DragEvent) => { e.preventDefault(); setIsDragging(false); };
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault(); setIsDragging(false);
+    if (isLimitReached) return showToast('error', `Limite de ${productLimit} produtos atingido.`);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) processFile(e.dataTransfer.files[0]);
+  };
 
   const exportBeautifulExcel = async () => {
     const workbook = new ExcelJS.Workbook()
     const worksheet = workbook.addWorksheet('Catálogo WYNX', { views: [{ state: 'frozen', ySplit: 10 }] })
     const colorPink = 'FFF9A8D4', colorViolet = 'FFC4B5FD', colorSoftPink = 'FFFCEFF5', colorText = 'FF0A0A0A'
-    
     worksheet.mergeCells('A1:G2')
     const titleCell = worksheet.getCell('A1')
     titleCell.value = 'WYNX — Relatório de Catálogo'
     titleCell.font = { name: 'Arial', size: 18, bold: true, color: { argb: colorText } }
     titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: colorPink } }
     titleCell.alignment = { vertical: 'middle', horizontal: 'center' }
-
     worksheet.addRow([])
     worksheet.addRow(['Empresa:', company?.name || 'N/A', '', 'Emitido por:', user?.name || 'N/A'])
     worksheet.addRow(['Data:', new Date().toLocaleString('pt-BR'), '', 'Plano:', company?.plan?.toUpperCase() || 'N/A'])
@@ -698,14 +778,12 @@ function Products({ q }: { q: string }) {
     worksheet.getRow(4).font = { bold: true, color: { argb: colorText } }
     worksheet.getRow(5).font = { bold: true, color: { argb: colorText } }
     worksheet.getRow(6).font = { bold: true, color: { argb: colorText } }
-
     worksheet.addRow([])
     const kpiRow = worksheet.addRow(['SALDO TOTAL:', formatMoney(kpis.value), '', 'TOTAL ITENS:', kpis.units, '', 'PRODUTOS ATIVOS:', kpis.products])
     kpiRow.font = { bold: true, size: 12, color: { argb: colorText } }
     kpiRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: colorViolet } }
     worksheet.mergeCells(`B${kpiRow.number}:C${kpiRow.number}`)
     worksheet.mergeCells(`E${kpiRow.number}:F${kpiRow.number}`)
-
     worksheet.addRow([]) 
     const headerRow = worksheet.addRow(['Produto', 'SKU', 'Categoria', 'Custo', 'Preço', 'Estoque', 'Total (Custo x Qtd)'])
     headerRow.eachCell((cell) => {
@@ -714,7 +792,6 @@ function Products({ q }: { q: string }) {
       cell.alignment = { vertical: 'middle', horizontal: 'center' }
       cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } }
     })
-
     list.forEach((p, index) => {
       const row = worksheet.addRow([p.name, p.sku, p.category, p.cost, p.price, p.qty, p.qty * p.cost])
       row.getCell(4).numFmt = '"R$" #,##0.00'
@@ -726,24 +803,84 @@ function Products({ q }: { q: string }) {
       row.eachCell((cell) => { cell.border = { top: { style: 'thin', color: { argb: 'FFE2E8F0' } }, bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } }, left: { style: 'thin', color: { argb: 'FFE2E8F0' } }, right: { style: 'thin', color: { argb: 'FFE2E8F0' } } } })
       if (p.qty <= p.minQty) row.getCell(6).font = { color: { argb: 'FFDC2626' }, bold: true }
     })
-
     worksheet.columns = [{ width: 35 }, { width: 15 }, { width: 20 }, { width: 15 }, { width: 15 }, { width: 10 }, { width: 25 }]
     const buffer = await workbook.xlsx.writeBuffer()
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
     saveAs(blob, `Relatorio_Catalogo_WYNX_${new Date().toISOString().slice(0, 10)}.xlsx`)
+    showToast('success', 'Relatório exportado com sucesso!')
   }
 
   return (
-    <div>
-      <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div><h1 className="text-2xl sm:text-3xl font-display font-bold">Catálogo</h1><p className="text-sm text-text-muted dark:text-white/50">Gerencie suas peças.</p></div>
-        <div id="tour-csv" className="flex items-center gap-2 flex-wrap">
-          <button onClick={exportBeautifulExcel} className="flex items-center justify-center gap-2 rounded-xl bg-white/50 dark:bg-white/5 border border-border-subtle dark:border-white/10 px-4 py-2.5 font-bold transition hover:bg-white dark:hover:bg-white/10"><Download className="h-4 w-4" /> Exportar</button>
-          <label className="flex items-center justify-center gap-2 rounded-xl bg-white/50 dark:bg-white/5 border border-border-subtle dark:border-white/10 px-4 py-2.5 font-bold transition hover:bg-white dark:hover:bg-white/10 cursor-pointer"><Upload className="h-4 w-4" /> Importar<input type="file" accept=".csv, .xlsx, .xls" className="hidden" onChange={importFile} /></label>
-          <button className="flex items-center justify-center gap-2 rounded-xl bg-brand-gradient px-5 py-2.5 font-bold text-white shadow-lg transition hover:scale-105 active:scale-95" onClick={() => { setEditing(null); setOpen(true) }}><Plus className="h-5 w-5" /> Novo Produto</button>
+    <div className="relative min-h-screen" onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
+      <AnimatePresence>
+        {isDragging && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[9999] flex items-center justify-center bg-[#0A0514]/80 backdrop-blur-md">
+            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="flex flex-col items-center justify-center w-[90%] max-w-lg h-64 border-2 border-dashed border-brand-pink rounded-3xl bg-brand-pink/10 shadow-[0_0_50px_rgba(249,168,212,0.2)]">
+              <div className="p-4 bg-brand-pink/20 rounded-full mb-4 animate-bounce"><Upload className="h-10 w-10 text-brand-pink" /></div>
+              <h2 className="text-2xl font-display font-bold text-white mb-2">Solte a planilha aqui</h2>
+              <p className="text-brand-pink/80 text-sm">Aceitamos .xlsx e .csv</p>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {toast && (
+          <motion.div initial={{ opacity: 0, y: 50, scale: 0.9 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 20, scale: 0.9 }}
+            className={`fixed bottom-6 right-6 z-[10000] flex items-start gap-3 p-4 rounded-2xl border backdrop-blur-xl shadow-2xl max-w-sm ${toast.type === 'success' ? 'bg-success/10 border-success/30 text-success' : 'bg-danger/10 border-danger/30 text-danger'}`}
+          >
+            <div className="shrink-0 mt-0.5">{toast.type === 'success' ? <CheckCircle2 size={20} /> : <Ban size={20} />}</div>
+            <div className="flex-1"><p className="text-sm font-medium whitespace-pre-line">{toast.message}</p></div>
+            <button onClick={() => setToast(null)} className="shrink-0 opacity-50 hover:opacity-100 transition-opacity"><X size={16} /></button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-6">
+        <div>
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-display font-bold">Catálogo</h1>
+            <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border transition-colors ${
+              isLimitReached ? 'bg-danger/10 border-danger/30 text-danger' : usagePercentage > 80 ? 'bg-warning/10 border-warning/30 text-warning' : 'bg-brand-violet/10 border-brand-violet/30 text-brand-violet'
+            }`}>
+              <Package className="h-3.5 w-3.5" />
+              {currentCount} / {productLimit !== null && productLimit !== undefined ? productLimit : '∞'}
+            </div>
+          </div>
+          <p className="text-sm text-text-muted dark:text-white/50 mt-1">Arraste um arquivo para cá ou use a barra de ferramentas.</p>
+        </div>
+
+        <div id="tour-csv" className="flex flex-wrap items-center gap-3">
+          {/* TOOLBAR EXPANSÍVEL IOS STYLE (Sem o botão de lixeira) */}
+          <div className="flex items-center bg-white/60 dark:bg-[#16142E]/80 border border-white/50 dark:border-white/10 rounded-[20px] p-1.5 backdrop-blur-xl shadow-lg">
+            <button onClick={exportBeautifulExcel} className="group flex items-center justify-center p-2.5 rounded-xl hover:bg-white/80 dark:hover:bg-white/10 transition-all text-text-muted dark:text-white/60 overflow-hidden">
+              <Upload className="h-4 w-4 shrink-0 group-hover:text-brand-pink transition-colors" />
+              <span className="max-w-0 overflow-hidden group-hover:max-w-[100px] group-hover:ml-2 transition-all duration-300 ease-out whitespace-nowrap opacity-0 group-hover:opacity-100 text-xs font-bold text-brand-pink">Exportar</span>
+            </button>
+            <button onClick={downloadTemplate} className="group flex items-center justify-center p-2.5 rounded-xl hover:bg-white/80 dark:hover:bg-white/10 transition-all text-text-muted dark:text-white/60 overflow-hidden">
+              <FileText className="h-4 w-4 shrink-0 group-hover:text-brand-cyan transition-colors" />
+              <span className="max-w-0 overflow-hidden group-hover:max-w-[100px] group-hover:ml-2 transition-all duration-300 ease-out whitespace-nowrap opacity-0 group-hover:opacity-100 text-xs font-bold text-brand-cyan">Modelo</span>
+            </button>
+            <div className="w-px h-5 bg-black/10 dark:bg-white/10 mx-1"></div>
+            <label className={`group flex items-center justify-center p-2.5 rounded-xl hover:bg-white/80 dark:hover:bg-white/10 transition-all text-text-muted dark:text-white/60 overflow-hidden cursor-pointer ${isLimitReached ? 'opacity-50 cursor-not-allowed' : ''}`}>
+              <Download className="h-4 w-4 shrink-0 group-hover:text-brand-violet transition-colors" />
+              <span className="max-w-0 overflow-hidden group-hover:max-w-[100px] group-hover:ml-2 transition-all duration-300 ease-out whitespace-nowrap opacity-0 group-hover:opacity-100 text-xs font-bold text-brand-violet">Importar</span>
+              <input type="file" accept=".csv, .xlsx" className="hidden" onChange={(e) => { if(e.target.files?.[0]) processFile(e.target.files[0]); e.target.value = ''; }} disabled={isLimitReached} />
+            </label>
+          </div>
+          
+          <button 
+            className="flex items-center justify-center gap-2 rounded-2xl bg-brand-gradient px-5 py-2.5 font-bold text-white shadow-lg transition hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100" 
+            disabled={isLimitReached}
+            onClick={() => { if (isLimitReached) return; setEditing(null); setOpen(true); }}
+          >
+            <Plus className="h-5 w-5" /> Novo Produto
+          </button>
         </div>
       </div>
+      
       {error && <p className="mb-4 text-sm text-danger bg-danger/10 p-3 rounded-lg border border-danger/20">{error}</p>}
+      
       <motion.div initial="hidden" animate="show" variants={{ show: { transition: { staggerChildren: 0.05 } } }} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {list.map((p) => (
           <motion.div key={p.id} variants={{ hidden: { opacity: 0, scale: 0.9 }, show: { opacity: 1, scale: 1 } }} className="group relative flex flex-col justify-between overflow-hidden rounded-3xl border border-border-subtle dark:border-white/10 bg-bg-surface/50 dark:bg-[#16142E]/80 p-5 backdrop-blur-md transition-all hover:-translate-y-1 hover:border-brand-violet/30 hover:shadow-2xl">
@@ -761,6 +898,7 @@ function Products({ q }: { q: string }) {
           </motion.div>
         ))}
       </motion.div>
+      
       <AnimatePresence>{open && <ProductForm product={editing} categories={categories.length ? categories : ['Geral']} onClose={() => setOpen(false)} onSave={(data) => { if (saveProduct(data)) setOpen(false) }} />}</AnimatePresence>
     </div>
   )
@@ -799,7 +937,6 @@ function ProductForm({ product, categories, onClose, onSave }: { product: Produc
     </SpatialModal>
   )
 }
-
 /* ============================================================
    ESTOQUE
    ============================================================ */
@@ -986,7 +1123,7 @@ function Alerts({ q }: { q: string }) {
   )
 }
 
-function History({ q }: { q: string }) {
+function HistoryTab({ q }: { q: string }) {
   const { movements } = useSession()
   const filtered = q ? movements.filter((m) => normalize(m.productName).includes(normalize(q))) : movements
   return (
@@ -1479,19 +1616,58 @@ function TourGuide({ onClose, onStepChange }: { onClose: () => void; onStepChang
 
 function Settings() {
   const { company, categories } = useSession()
-  const { setCompany, newCategory } = useStore()
+  // Adicionamos o 'error' para conseguirmos mostrar a mensagem do Supabase na tela
+  const { setCompany, newCategory, clearAllStock, removeAllProducts, error } = useStore()
+  
   const [form, setForm] = useState({ name: company?.name || '', segment: company?.segment || SEGMENTS[0], city: company?.city || '', state: company?.state || '' })
   const [cat, setCat] = useState('')
 
+  // ESTADOS PARA A ZONA DE PERIGO
+  const [dangerModal, setDangerModal] = useState<'clear' | 'remove' | null>(null)
+  const [confirmText, setConfirmText] = useState('')
+  const [isProcessing, setIsProcessing] = useState(false)
+
+  const handleDangerAction = async () => {
+    const word = dangerModal === 'clear' ? 'ZERAR' : 'EXCLUIR'
+    if (confirmText !== word) return
+    
+    setIsProcessing(true)
+    let success = false
+
+    if (dangerModal === 'clear') {
+      success = await clearAllStock()
+    } else if (dangerModal === 'remove') {
+      success = await removeAllProducts()
+    }
+
+    setIsProcessing(false)
+    
+    if (success) {
+      setDangerModal(null)
+      setConfirmText('')
+      // Recarrega para o RxDB sincronizar com o Supabase vazio
+      window.location.reload() 
+    }
+  }
+
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
+    <div className="space-y-6 max-w-5xl mx-auto pb-24">
       <div>
         <h1 className="text-2xl sm:text-3xl font-display font-bold">Ajustes</h1>
         <p className="text-sm text-text-muted dark:text-white/50">Configurações do sistema.</p>
       </div>
+
+      {/* MENSAGEM DE ERRO VISÍVEL (Caso o Supabase bloqueie) */}
+      {error && (
+        <div className="rounded-xl border border-danger/30 bg-danger/10 p-4 text-sm text-danger shadow-lg">
+          <p className="font-bold">Atenção:</p>
+          <p>{error}</p>
+        </div>
+      )}
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-        <form className="rounded-3xl border border-border-subtle dark:border-white/10 bg-white dark:bg-[#16142E] p-6 space-y-4 shadow-xl" onSubmit={(e) => { e.preventDefault(); setCompany(form) }}>
+        {/* FORMULÁRIO DA EMPRESA */}
+        <form className="rounded-3xl border border-border-subtle dark:border-white/10 bg-bg-surface/50 dark:bg-[#16142E] p-6 space-y-4 shadow-xl" onSubmit={(e) => { e.preventDefault(); setCompany(form) }}>
           <h3 className="text-lg font-bold mb-2 flex items-center gap-2"><Building2 className="h-5 w-5 text-brand-violet" /> Empresa</h3>
           <div className="flex flex-col gap-1.5"><label className="text-sm font-medium text-text-muted dark:text-white/50">Nome Fantasia</label><input className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 outline-none focus:border-brand-violet text-text-primary dark:text-white" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
           <div className="flex flex-col gap-1.5"><label className="text-sm font-medium text-text-muted dark:text-white/50">Segmento</label><select className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 outline-none focus:border-brand-violet text-text-primary dark:text-white" value={form.segment} onChange={(e) => setForm({ ...form, segment: e.target.value })}>{SEGMENTS.map((s) => <option key={s}>{s}</option>)}</select></div>
@@ -1502,7 +1678,8 @@ function Settings() {
           <button className="w-full rounded-xl bg-brand-gradient py-3 font-bold text-white mt-4 hover:scale-[1.02] transition shadow-lg">Salvar Empresa</button>
         </form>
 
-        <div className="rounded-3xl border border-border-subtle dark:border-white/10 bg-white dark:bg-[#16142E] p-6 space-y-4 shadow-xl">
+        {/* CATEGORIAS */}
+        <div className="rounded-3xl border border-border-subtle dark:border-white/10 bg-bg-surface/50 dark:bg-[#16142E] p-6 space-y-4 shadow-xl">
           <h3 className="text-lg font-bold mb-2 flex items-center gap-2"><Layers className="h-5 w-5 text-brand-cyan" /> Categorias</h3>
           <div className="flex flex-wrap gap-2 mb-4">
             {categories.map((c) => (<span key={c} className="rounded-full bg-brand-violet/20 border border-brand-violet/30 px-3 py-1 text-sm text-brand-violet font-medium">{c}</span>))}
@@ -1514,6 +1691,7 @@ function Settings() {
           </div>
         </div>
 
+        {/* AJUDA E TOUR */}
         <div className="md:col-span-2 rounded-3xl border border-brand-pink/30 bg-brand-pink/5 p-6 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl">
           <div className="flex items-center gap-4">
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-brand-pink/20 text-brand-pink"><Sparkles className="h-6 w-6" /></div>
@@ -1524,7 +1702,74 @@ function Settings() {
           </div>
           <button onClick={() => { localStorage.removeItem('wynx_onboarding_done'); window.location.reload(); }} className="w-full sm:w-auto shrink-0 rounded-xl bg-brand-gradient px-6 py-3 font-bold text-white transition hover:scale-[1.02] shadow-lg flex items-center justify-center gap-2"><RefreshCcw className="h-4 w-4" /> Reiniciar Tour</button>
         </div>
+
+        {/* ZONA DE PERIGO */}
+        <div className="md:col-span-2 rounded-3xl border border-danger/30 bg-danger/5 p-6 space-y-6 shadow-xl">
+          <div>
+            <h3 className="text-lg font-bold text-danger flex items-center gap-2"><Ban className="h-5 w-5" /> Zona de Perigo</h3>
+            <p className="text-sm text-danger/70 mt-1">Ações de manutenção de dados. Tenha muito cuidado ao utilizar estas ferramentas.</p>
+          </div>
+          
+          <div className="flex flex-col sm:flex-row gap-4">
+            <button 
+              onClick={() => setDangerModal('clear')}
+              className="flex-1 rounded-xl border border-danger/50 bg-transparent px-4 py-3 text-sm font-bold text-danger transition hover:bg-danger hover:text-white flex items-center justify-center gap-2"
+            >
+              <RefreshCcw className="h-4 w-4" /> Zerar Estoque de Todos os Produtos
+            </button>
+            <button 
+              onClick={() => setDangerModal('remove')}
+              className="flex-1 rounded-xl border border-danger bg-danger text-white px-4 py-3 text-sm font-bold transition hover:bg-red-700 flex items-center justify-center gap-2"
+            >
+              <Trash2 className="h-4 w-4" /> Excluir Todos os Produtos
+            </button>
+          </div>
+        </div>
       </div>
+
+      {/* MODAL DE CONFIRMAÇÃO DA ZONA DE PERIGO */}
+      <AnimatePresence>
+        {dangerModal && (
+          <SpatialModal 
+            title={dangerModal === 'clear' ? "Zerar Estoque" : "Excluir Todos os Produtos"} 
+            onClose={() => !isProcessing && setDangerModal(null)}
+          >
+            <div className="space-y-4">
+              <div className="rounded-xl border border-danger/30 bg-danger/10 p-4 text-sm text-danger">
+                <p className="font-bold">Atenção: Esta ação não pode ser desfeita.</p>
+                <p className="mt-1">
+                  {dangerModal === 'clear' 
+                    ? 'Isso definirá a quantidade em estoque de TODOS os produtos como 0. O catálogo não será apagado.' 
+                    : 'Isso apagará PERMANENTEMENTE todos os produtos do seu catálogo. Históricos de vendas não serão afetados.'}
+                </p>
+              </div>
+              
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium text-text-secondary dark:text-white/70">
+                  Digite <strong className="text-danger">{dangerModal === 'clear' ? 'ZERAR' : 'EXCLUIR'}</strong> para confirmar:
+                </label>
+                <input 
+                  className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 outline-none focus:border-danger text-text-primary dark:text-white" 
+                  value={confirmText} 
+                  onChange={(e) => setConfirmText(e.target.value.toUpperCase())} 
+                  placeholder={dangerModal === 'clear' ? 'ZERAR' : 'EXCLUIR'} 
+                />
+              </div>
+
+              <div className="flex gap-2 justify-end pt-2">
+                <button className="rounded-xl px-4 py-2 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/10 transition" onClick={() => setDangerModal(null)} disabled={isProcessing}>Cancelar</button>
+                <button 
+                  className="rounded-xl bg-danger px-4 py-2 text-sm font-bold text-white transition hover:bg-red-700 disabled:opacity-50 flex items-center gap-2" 
+                  onClick={handleDangerAction} 
+                  disabled={confirmText !== (dangerModal === 'clear' ? 'ZERAR' : 'EXCLUIR') || isProcessing}
+                >
+                  {isProcessing ? 'Processando...' : 'Confirmar Exclusão'}
+                </button>
+              </div>
+            </div>
+          </SpatialModal>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
@@ -1659,10 +1904,8 @@ function SuperAdmin() {
 const confirmPayment = async (paymentId: string, companyId: string, planId: string) => {
   if (!confirm("Confirmar PIX e ativar plano do cliente?")) return;
   try {
-    // 1. Tenta achar o objeto do plano pelo ID ou Slug
     let planObj = plans.find(p => p.id === planId || p.slug === planId);
     
-    // 2. Se não achar, tenta achar pelo preço (empresarial/enterprise = 1299)
     if (!planObj) {
       const priceMap: Record<string, number> = {
         'basico': 89.9, 'essencial': 149, 'profissional': 499, 'empresarial': 1299, 'enterprise': 1299
@@ -1673,7 +1916,6 @@ const confirmPayment = async (paymentId: string, companyId: string, planId: stri
       }
     }
 
-    // 3. Se ainda não achar, usa o próprio planId (o SQL vai resolver)
     const enumPlan = planObj ? getEnumPlan(planObj) : planId;
 
     const { error } = await supabase.rpc('admin_approve_payment', {
@@ -1759,13 +2001,13 @@ const handleChangePlan = async () => {
         )}
       </AnimatePresence>
 
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-3xl border border-white/10 bg-[#16142E]/80 p-6 shadow-2xl backdrop-blur-xl relative overflow-hidden">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-3xl border border-border-subtle dark:border-white/10 bg-bg-surface/80 dark:bg-[#16142E]/80 p-6 shadow-xl backdrop-blur-xl relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-accent/10 rounded-full blur-[80px] pointer-events-none" />
         <div className="flex items-center gap-4 relative z-10">
           <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-accent/20 text-accent shadow-[0_0_30px_rgba(245,185,66,0.3)] border border-accent/30"><Crown className="h-8 w-8" /></div>
-          <div><h1 className="text-3xl font-display font-black text-accent">Master Control</h1><p className="text-sm text-white/50">Gestão global, financeira e suporte.</p></div>
+          <div><h1 className="text-3xl font-display font-black text-accent">Master Control</h1><p className="text-sm text-text-muted dark:text-white/50">Gestão global, financeira e suporte.</p></div>
         </div>
-        <button onClick={loadData} className="relative z-10 flex items-center justify-center gap-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 px-4 py-2.5 font-bold transition text-sm text-white"><RefreshCcw className="h-4 w-4" /> Atualizar Dados</button>
+        <button onClick={loadData} className="relative z-10 flex items-center justify-center gap-2 rounded-xl bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 border border-border-subtle dark:border-white/10 px-4 py-2.5 font-bold transition text-sm text-text-primary dark:text-white"><RefreshCcw className="h-4 w-4" /> Atualizar Dados</button>
       </div>
 
       {pendingPayments.length > 0 && (
@@ -1773,12 +2015,12 @@ const handleChangePlan = async () => {
           <h3 className="text-lg font-bold text-brand-pink mb-4 flex items-center gap-2"><Clock className="h-5 w-5" /> Cobranças Aguardando Aprovação ({pendingPayments.length})</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {pendingPayments.map(pay => (
-              <div key={pay.id} className="bg-[#16142E] border border-white/10 p-5 rounded-2xl flex flex-col justify-between shadow-lg">
+              <div key={pay.id} className="bg-white dark:bg-[#16142E] border border-border-subtle dark:border-white/10 p-5 rounded-2xl flex flex-col justify-between shadow-lg">
                 <div>
-                  <p className="font-bold text-white text-lg">{pay.companies?.name}</p>
-                  <p className="text-sm text-white/50">Plano: <span className="text-brand-pink uppercase font-bold">{plans.find(p => p.slug === pay.plan_id || p.id === pay.plan_id)?.name || pay.plan_id}</span></p>
+                  <p className="font-bold text-text-primary dark:text-white text-lg">{pay.companies?.name}</p>
+                  <p className="text-sm text-text-muted dark:text-white/50">Plano: <span className="text-brand-pink uppercase font-bold">{plans.find(p => p.slug === pay.plan_id || p.id === pay.plan_id)?.name || pay.plan_id}</span></p>
                   <p className="text-2xl font-black text-brand-pink mt-2">{formatMoney(pay.amount)}</p>
-                  <p className="text-xs text-white/40 mt-1">Solicitado: {new Date(pay.created_at).toLocaleString('pt-BR')}</p>
+                  <p className="text-xs text-text-muted dark:text-white/40 mt-1">Solicitado: {new Date(pay.created_at).toLocaleString('pt-BR')}</p>
                 </div>
                 <button onClick={() => confirmPayment(pay.id, pay.company_id, pay.plan_id)} className="mt-4 w-full bg-brand-pink text-black font-bold py-3 rounded-xl hover:scale-[1.02] active:scale-[0.98] transition flex items-center justify-center gap-2"><CheckCircle2 size={18} /> Confirmar PIX</button>
               </div>
@@ -1788,50 +2030,50 @@ const handleChangePlan = async () => {
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl relative overflow-hidden"><div className="absolute top-0 right-0 w-24 h-24 bg-success/10 blur-2xl rounded-full" /><p className="text-xs font-bold uppercase tracking-wider text-white/50">Receita (MRR)</p><p className="mt-2 text-3xl font-black text-success">{formatMoney(totalMRR)}</p></div>
-        <div className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl relative overflow-hidden"><div className="absolute top-0 right-0 w-24 h-24 bg-brand-violet/10 blur-2xl rounded-full" /><p className="text-xs font-bold uppercase tracking-wider text-white/50">Empresas Ativas</p><p className="mt-2 text-3xl font-black text-brand-violet">{activeCompanies.length}</p></div>
-        <div className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl relative overflow-hidden"><div className="absolute top-0 right-0 w-24 h-24 bg-danger/10 blur-2xl rounded-full" /><p className="text-xs font-bold uppercase tracking-wider text-white/50">Contas Suspensas</p><p className="mt-2 text-3xl font-black text-danger">{clientCompanies.length - activeCompanies.length}</p></div>
-        <div className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl relative overflow-hidden"><div className="absolute top-0 right-0 w-24 h-24 bg-brand-cyan/10 blur-2xl rounded-full" /><p className="text-xs font-bold uppercase tracking-wider text-white/50">Total de Usuários</p><p className="mt-2 text-3xl font-black text-brand-cyan">{clientCompanies.reduce((acc, c) => acc + c.membersCount, 0)}</p></div>
+        <div className="rounded-3xl border border-border-subtle dark:border-white/10 bg-bg-surface/50 dark:bg-white/5 p-6 backdrop-blur-xl relative overflow-hidden"><div className="absolute top-0 right-0 w-24 h-24 bg-success/10 blur-2xl rounded-full" /><p className="text-xs font-bold uppercase tracking-wider text-text-muted dark:text-white/50">Receita (MRR)</p><p className="mt-2 text-3xl font-black text-success">{formatMoney(totalMRR)}</p></div>
+        <div className="rounded-3xl border border-border-subtle dark:border-white/10 bg-bg-surface/50 dark:bg-white/5 p-6 backdrop-blur-xl relative overflow-hidden"><div className="absolute top-0 right-0 w-24 h-24 bg-brand-violet/10 blur-2xl rounded-full" /><p className="text-xs font-bold uppercase tracking-wider text-text-muted dark:text-white/50">Empresas Ativas</p><p className="mt-2 text-3xl font-black text-brand-violet">{activeCompanies.length}</p></div>
+        <div className="rounded-3xl border border-border-subtle dark:border-white/10 bg-bg-surface/50 dark:bg-white/5 p-6 backdrop-blur-xl relative overflow-hidden"><div className="absolute top-0 right-0 w-24 h-24 bg-danger/10 blur-2xl rounded-full" /><p className="text-xs font-bold uppercase tracking-wider text-text-muted dark:text-white/50">Contas Suspensas</p><p className="mt-2 text-3xl font-black text-danger">{clientCompanies.length - activeCompanies.length}</p></div>
+        <div className="rounded-3xl border border-border-subtle dark:border-white/10 bg-bg-surface/50 dark:bg-white/5 p-6 backdrop-blur-xl relative overflow-hidden"><div className="absolute top-0 right-0 w-24 h-24 bg-brand-cyan/10 blur-2xl rounded-full" /><p className="text-xs font-bold uppercase tracking-wider text-text-muted dark:text-white/50">Total de Usuários</p><p className="mt-2 text-3xl font-black text-brand-cyan">{clientCompanies.reduce((acc, c) => acc + c.membersCount, 0)}</p></div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2 rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
-          <h3 className="text-sm font-bold uppercase tracking-wider text-white/50 mb-6">Evolução de Receita (MRR)</h3>
-          <div className="h-56 w-full"><ResponsiveContainer><BarChart data={growthData}><CartesianGrid strokeDasharray="3 3" stroke="currentColor" opacity={0.1} /><XAxis dataKey="mes" fontSize={12} stroke="currentColor" opacity={0.5} /><YAxis fontSize={12} stroke="currentColor" opacity={0.5} tickFormatter={(v) => `R$ ${v}`} /><Tooltip formatter={(value: number) => formatMoney(value)} contentStyle={{ backgroundColor: '#16142E', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff' }} /><Bar dataKey="mrr" fill="#F9A8D4" radius={[6, 6, 0, 0]} /></BarChart></ResponsiveContainer></div>
+        <div className="lg:col-span-2 rounded-3xl border border-border-subtle dark:border-white/10 bg-bg-surface/50 dark:bg-white/5 p-6 backdrop-blur-xl">
+          <h3 className="text-sm font-bold uppercase tracking-wider text-text-muted dark:text-white/50 mb-6">Evolução de Receita (MRR)</h3>
+          <div className="h-56 w-full"><ResponsiveContainer><BarChart data={growthData}><CartesianGrid strokeDasharray="3 3" stroke="currentColor" opacity={0.1} /><XAxis dataKey="mes" fontSize={12} stroke="currentColor" opacity={0.5} /><YAxis fontSize={12} stroke="currentColor" opacity={0.5} tickFormatter={(v) => `R$ ${v}`} /><Tooltip formatter={(value: number) => formatMoney(value)} contentStyle={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border-subtle)', borderRadius: '12px', color: 'var(--color-text-primary)' }} /><Bar dataKey="mrr" fill="#F9A8D4" radius={[6, 6, 0, 0]} /></BarChart></ResponsiveContainer></div>
         </div>
-        <div className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
-          <h3 className="text-sm font-bold uppercase tracking-wider text-white/50 mb-6">Distribuição de Planos</h3>
-          <div className="h-56 w-full flex items-center justify-center"><ResponsiveContainer><PieChart><Pie data={planDistribution} dataKey="value" nameKey="name" innerRadius={50} outerRadius={80} stroke="none" paddingAngle={5}>{planDistribution.map((entry, index) => (<Cell key={index} fill={entry.color} />))}</Pie><Tooltip contentStyle={{ backgroundColor: '#16142E', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff' }} /></PieChart></ResponsiveContainer></div>
-          <div className="flex flex-wrap justify-center gap-3 mt-4">{planDistribution.map(p => (<div key={p.name} className="flex items-center gap-1.5 text-xs text-white/60"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: p.color }}></span> {p.name} ({p.value})</div>))}</div>
+        <div className="rounded-3xl border border-border-subtle dark:border-white/10 bg-bg-surface/50 dark:bg-white/5 p-6 backdrop-blur-xl">
+          <h3 className="text-sm font-bold uppercase tracking-wider text-text-muted dark:text-white/50 mb-6">Distribuição de Planos</h3>
+          <div className="h-56 w-full flex items-center justify-center"><ResponsiveContainer><PieChart><Pie data={planDistribution} dataKey="value" nameKey="name" innerRadius={50} outerRadius={80} stroke="none" paddingAngle={5}>{planDistribution.map((entry, index) => (<Cell key={index} fill={entry.color} />))}</Pie><Tooltip contentStyle={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border-subtle)', borderRadius: '12px', color: 'var(--color-text-primary)' }} /></PieChart></ResponsiveContainer></div>
+          <div className="flex flex-wrap justify-center gap-3 mt-4">{planDistribution.map(p => (<div key={p.name} className="flex items-center gap-1.5 text-xs text-text-muted dark:text-white/60"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: p.color }}></span> {p.name} ({p.value})</div>))}</div>
         </div>
       </div>
 
-      <div className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl overflow-hidden">
+      <div className="rounded-3xl border border-border-subtle dark:border-white/10 bg-bg-surface/50 dark:bg-white/5 p-6 backdrop-blur-xl overflow-hidden">
         <div className="flex flex-col sm:flex-row items-center justify-between mb-6 gap-4">
-          <h3 className="text-lg font-bold flex items-center gap-2 text-white"><Building2 className="h-5 w-5 text-brand-pink" /> Gestão de Clientes</h3>
+          <h3 className="text-lg font-bold flex items-center gap-2 text-text-primary dark:text-white"><Building2 className="h-5 w-5 text-brand-pink" /> Gestão de Clientes</h3>
           <div className="flex flex-col sm:flex-row w-full sm:w-auto gap-2">
-            <input type="text" placeholder="Buscar empresa ou e-mail..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full sm:w-64 rounded-xl border border-white/10 bg-black/40 px-4 py-2 text-sm text-white outline-none focus:border-brand-pink" />
-            <select value={filterPlan} onChange={(e) => setFilterPlan(e.target.value)} className="rounded-xl border border-white/10 bg-black/40 px-4 py-2 text-sm text-white outline-none focus:border-brand-pink">
+            <input type="text" placeholder="Buscar empresa ou e-mail..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full sm:w-64 rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/40 px-4 py-2 text-sm text-text-primary dark:text-white outline-none focus:border-brand-pink" />
+            <select value={filterPlan} onChange={(e) => setFilterPlan(e.target.value)} className="rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/40 px-4 py-2 text-sm text-text-primary dark:text-white outline-none focus:border-brand-pink">
               <option value="todos">Todos os Planos</option><option value="gratuito">Gratuito</option><option value="basico">Básico</option><option value="essencial">Starter</option><option value="profissional">Business</option><option value="empresarial">Enterprise</option>
             </select>
           </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left whitespace-nowrap">
-            <thead className="text-xs uppercase bg-white/5 text-white/50"><tr><th className="px-4 py-3 rounded-l-xl">Empresa / Dono</th><th className="px-4 py-3">Plano</th><th className="px-4 py-3">Equipe</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Criada em</th><th className="px-4 py-3 text-right rounded-r-xl">Ações</th></tr></thead>
+            <thead className="text-xs uppercase bg-black/5 dark:bg-white/5 text-text-muted dark:text-white/50"><tr><th className="px-4 py-3 rounded-l-xl">Empresa / Dono</th><th className="px-4 py-3">Plano</th><th className="px-4 py-3">Equipe</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Criada em</th><th className="px-4 py-3 text-right rounded-r-xl">Ações</th></tr></thead>
             <tbody>
-              {loading ? (<tr><td colSpan={6} className="text-center py-8 text-white/50">Carregando dados globais...</td></tr>) : filteredCompanies.length === 0 ? (<tr><td colSpan={6} className="text-center py-8 text-white/50">Nenhuma empresa encontrada.</td></tr>) : (
+              {loading ? (<tr><td colSpan={6} className="text-center py-8 text-text-muted dark:text-white/50">Carregando dados globais...</td></tr>) : filteredCompanies.length === 0 ? (<tr><td colSpan={6} className="text-center py-8 text-text-muted dark:text-white/50">Nenhuma empresa encontrada.</td></tr>) : (
                 filteredCompanies.map((c) => (
-                  <tr key={c.id} className="border-b border-white/5 last:border-0 hover:bg-white/5 transition">
-                    <td className="px-4 py-4"><p className="font-bold text-white">{c.name}</p><p className="text-xs text-white/50">{c.ownerName} ({c.ownerEmail})</p></td>
+                  <tr key={c.id} className="border-b border-border-subtle dark:border-white/5 last:border-0 hover:bg-black/5 dark:hover:bg-white/5 transition">
+                    <td className="px-4 py-4"><p className="font-bold text-text-primary dark:text-white">{c.name}</p><p className="text-xs text-text-muted dark:text-white/50">{c.ownerName} ({c.ownerEmail})</p></td>
                     <td className="px-4 py-4">
-                      <button onClick={() => { setEditingCompany(c); setSelectedPlanId(c.plan); }} className={`px-3 py-1.5 rounded-full text-xs font-bold uppercase transition-all duration-300 flex items-center gap-1.5 hover:scale-105 hover:shadow-lg ${c.plan === 'gratuito' ? 'bg-white/10 text-white/70 hover:bg-white/20' : c.plan === 'basico' ? 'bg-brand-pink/20 text-brand-pink hover:bg-brand-pink/30 hover:shadow-[0_0_15px_rgba(249,168,212,0.4)]' : c.plan === 'essencial' ? 'bg-brand-cyan/20 text-brand-cyan hover:bg-brand-cyan/30 hover:shadow-[0_0_15px_rgba(6,182,212,0.4)]' : c.plan === 'profissional' ? 'bg-brand-violet/20 text-brand-violet hover:bg-brand-violet/30 hover:shadow-[0_0_15px_rgba(196,181,253,0.4)]' : 'bg-accent/20 text-accent hover:bg-accent/30 hover:shadow-[0_0_15px_rgba(245,185,66,0.4)]'}`}>
+                      <button onClick={() => { setEditingCompany(c); setSelectedPlanId(c.plan); }} className={`px-3 py-1.5 rounded-full text-xs font-bold uppercase transition-all duration-300 flex items-center gap-1.5 hover:scale-105 hover:shadow-lg ${c.plan === 'gratuito' ? 'bg-black/10 dark:bg-white/10 text-text-muted dark:text-white/70 hover:bg-black/20 dark:hover:bg-white/20' : c.plan === 'basico' ? 'bg-brand-pink/20 text-brand-pink hover:bg-brand-pink/30 hover:shadow-[0_0_15px_rgba(249,168,212,0.4)]' : c.plan === 'essencial' ? 'bg-brand-cyan/20 text-brand-cyan hover:bg-brand-cyan/30 hover:shadow-[0_0_15px_rgba(6,182,212,0.4)]' : c.plan === 'profissional' ? 'bg-brand-violet/20 text-brand-violet hover:bg-brand-violet/30 hover:shadow-[0_0_15px_rgba(196,181,253,0.4)]' : 'bg-accent/20 text-accent hover:bg-accent/30 hover:shadow-[0_0_15px_rgba(245,185,66,0.4)]'}`}>
                         {c.plan} <Edit3 size={12} className="ml-0.5" />
                       </button>
                     </td>
-                    <td className="px-4 py-4 text-white/70">{c.membersCount} usuários</td>
+                    <td className="px-4 py-4 text-text-muted dark:text-white/70">{c.membersCount} usuários</td>
                     <td className="px-4 py-4"><span className={`px-2.5 py-1 rounded-full text-xs font-bold uppercase flex items-center gap-1 w-max ${c.status === 'active' ? 'bg-success/10 text-success' : 'bg-danger/10 text-danger'}`}><span className={`w-1.5 h-1.5 rounded-full ${c.status === 'active' ? 'bg-success' : 'bg-danger'}`}></span>{c.status === 'active' ? 'Ativa' : 'Suspensa'}</span></td>
-                    <td className="px-4 py-4 text-white/50">{new Date(c.created_at).toLocaleDateString('pt-BR')}</td>
+                    <td className="px-4 py-4 text-text-muted dark:text-white/50">{new Date(c.created_at).toLocaleDateString('pt-BR')}</td>
                     <td className="px-4 py-4 text-right flex items-center justify-end gap-2">
                       <button onClick={() => { if (confirm(`Deseja acessar o painel da empresa ${c.name}?`)) impersonateUser(c.owner_id) }} className="p-2 rounded-lg bg-brand-cyan/10 text-brand-cyan hover:bg-brand-cyan/20 transition" title="Entrar como Cliente"><LogIn className="h-4 w-4" /></button>
                       <button onClick={() => handleToggleStatus(c.id, c.status)} className={`p-2 rounded-lg transition ${c.status === 'active' ? 'bg-danger/10 text-danger hover:bg-danger/20' : 'bg-success/10 text-success hover:bg-success/20'}`} title={c.status === 'active' ? 'Suspender Conta' : 'Reativar Conta'}>{c.status === 'active' ? <Ban className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}</button>
@@ -1844,34 +2086,34 @@ const handleChangePlan = async () => {
         </div>
       </div>
 
-      <div className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
-        <h3 className="text-lg font-bold mb-4 flex items-center gap-2 text-white"><FileText className="h-5 w-5 text-brand-cyan" /> Últimas Ações Administrativas</h3>
+      <div className="rounded-3xl border border-border-subtle dark:border-white/10 bg-bg-surface/50 dark:bg-white/5 p-6 backdrop-blur-xl">
+        <h3 className="text-lg font-bold mb-4 flex items-center gap-2 text-text-primary dark:text-white"><FileText className="h-5 w-5 text-brand-cyan" /> Últimas Ações Administrativas</h3>
         <div className="space-y-3">
-          {logs.length === 0 ? (<p className="text-sm text-white/50">Nenhuma ação registrada.</p>) : logs.map(log => (
-            <div key={log.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 p-3 rounded-xl border border-white/5 bg-black/20 text-sm"><div><span className="font-bold text-white">{log.action}</span><span className="text-white/50 ml-2">{log.details}</span></div><span className="text-xs text-white/40">{new Date(log.created_at).toLocaleString('pt-BR')}</span></div>
+          {logs.length === 0 ? (<p className="text-sm text-text-muted dark:text-white/50">Nenhuma ação registrada.</p>) : logs.map(log => (
+            <div key={log.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 p-3 rounded-xl border border-border-subtle dark:border-white/5 bg-black/5 dark:bg-black/20 text-sm"><div><span className="font-bold text-text-primary dark:text-white">{log.action}</span><span className="text-text-muted dark:text-white/50 ml-2">{log.details}</span></div><span className="text-xs text-text-muted dark:text-white/40">{new Date(log.created_at).toLocaleString('pt-BR')}</span></div>
           ))}
         </div>
       </div>
 
       {editingCompany && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
-          <motion.div initial={{ scale: 0.95, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} className="relative w-full max-w-md bg-[#0f172a] border border-white/10 rounded-[32px] p-8 shadow-2xl overflow-hidden">
+          <motion.div initial={{ scale: 0.95, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} className="relative w-full max-w-md bg-white dark:bg-[#0f172a] border border-border-subtle dark:border-white/10 rounded-[32px] p-8 shadow-2xl overflow-hidden">
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-32 bg-brand-pink/20 blur-[80px] rounded-full pointer-events-none" />
-            <button onClick={() => setEditingCompany(null)} className="absolute top-6 right-6 p-2 bg-white/5 hover:bg-white/10 rounded-full transition-colors z-10"><X size={20} className="text-white" /></button>
-            <div className="text-center mb-8 relative z-10"><h2 className="text-2xl font-display font-bold text-white">Alterar Plano</h2><p className="text-sm text-white/50 mt-1">Empresa: <span className="text-brand-pink font-medium">{editingCompany.name}</span></p></div>
+            <button onClick={() => setEditingCompany(null)} className="absolute top-6 right-6 p-2 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 rounded-full transition-colors z-10"><X size={20} className="text-text-primary dark:text-white" /></button>
+            <div className="text-center mb-8 relative z-10"><h2 className="text-2xl font-display font-bold text-text-primary dark:text-white">Alterar Plano</h2><p className="text-sm text-text-muted dark:text-white/50 mt-1">Empresa: <span className="text-brand-pink font-medium">{editingCompany.name}</span></p></div>
             <div className="space-y-3 relative z-10 max-h-[50vh] overflow-y-auto pr-2">
               {plans.map(plan => (
-                <div key={plan.id} onClick={() => setSelectedPlanId(plan.id)} className={`p-4 rounded-2xl border cursor-pointer transition-all duration-300 relative overflow-hidden ${selectedPlanId === plan.id ? 'bg-brand-pink/10 border-brand-pink/50 shadow-[inset_0_1px_1px_rgba(249,168,212,0.2)]' : 'bg-white/5 border-white/5 hover:bg-white/10'}`}>
+                <div key={plan.id} onClick={() => setSelectedPlanId(plan.id)} className={`p-4 rounded-2xl border cursor-pointer transition-all duration-300 relative overflow-hidden ${selectedPlanId === plan.id ? 'bg-brand-pink/10 border-brand-pink/50 shadow-[inset_0_1px_1px_rgba(249,168,212,0.2)]' : 'bg-black/5 dark:bg-white/5 border-border-subtle dark:border-white/5 hover:bg-black/10 dark:hover:bg-white/10'}`}>
                   {selectedPlanId === plan.id && (<div className="absolute left-0 top-0 bottom-0 w-1 bg-brand-pink" />)}
                   <div className="flex justify-between items-center">
-                    <div><p className={`font-bold ${selectedPlanId === plan.id ? 'text-brand-pink' : 'text-white'}`}>{plan.name}</p><p className="text-xs text-white/50 mt-1 flex gap-2"><span>{plan.product_limit ? `${plan.product_limit} prod.` : 'Prod. Ilimitados'}</span><span>•</span><span>{plan.user_limit ? `${plan.user_limit} usuários` : 'Usuários Ilimitados'}</span></p></div>
-                    <div className="text-right"><p className={`font-black ${selectedPlanId === plan.id ? 'text-white' : 'text-white/80'}`}>{formatMoney(plan.price_cents / 100)}</p><p className="text-[10px] text-white/50">/mês</p></div>
+                    <div><p className={`font-bold ${selectedPlanId === plan.id ? 'text-brand-pink' : 'text-text-primary dark:text-white'}`}>{plan.name}</p><p className="text-xs text-text-muted dark:text-white/50 mt-1 flex gap-2"><span>{plan.product_limit ? `${plan.product_limit} prod.` : 'Prod. Ilimitados'}</span><span>•</span><span>{plan.user_limit ? `${plan.user_limit} usuários` : 'Usuários Ilimitados'}</span></p></div>
+                    <div className="text-right"><p className={`font-black ${selectedPlanId === plan.id ? 'text-text-primary dark:text-white' : 'text-text-muted dark:text-white/80'}`}>{formatMoney(plan.price_cents / 100)}</p><p className="text-[10px] text-text-muted dark:text-white/50">/mês</p></div>
                   </div>
                 </div>
               ))}
             </div>
             <div className="flex gap-3 mt-8 relative z-10">
-              <button onClick={() => setEditingCompany(null)} className="flex-1 bg-white/5 hover:bg-white/10 text-white py-3.5 rounded-xl font-medium transition">Cancelar</button>
+              <button onClick={() => setEditingCompany(null)} className="flex-1 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 text-text-primary dark:text-white py-3.5 rounded-xl font-medium transition">Cancelar</button>
               <button onClick={handleChangePlan} disabled={isUpdatingPlan || selectedPlanId === editingCompany.plan} className="flex-1 bg-brand-pink text-black py-3.5 rounded-xl font-bold transition hover:scale-[1.02] disabled:opacity-50 disabled:hover:scale-100 flex justify-center items-center gap-2 shadow-[0_0_20px_rgba(249,168,212,0.3)]">{isUpdatingPlan ? 'Salvando...' : 'Confirmar Mudança'}</button>
             </div>
           </motion.div>

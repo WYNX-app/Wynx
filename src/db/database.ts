@@ -20,11 +20,10 @@ export async function getLocalDb() {
   dbPromise = (async () => {
     try {
       const db = await createRxDatabase({
-        name: 'wynxdb_v6', // AUMENTEI A VERSÃO PARA FORÇAR O RXDB A CRIAR AS NOVAS TABELAS SEM CONFLITO
+        name: 'wynxdb_v6',
         storage: getRxStorageDexie(),
       });
 
-      // Adicionando todas as coleções (antigas e novas)
       await db.addCollections({
         products: { schema: productSchema },
         movements: { schema: movementSchema },
@@ -39,35 +38,27 @@ export async function getLocalDb() {
       const salesCol = db.collections.sales;
       const cashMovementsCol = db.collections.cashMovements;
 
-      if (!productsCol || !movementsCol || !cashRegistersCol || !salesCol || !cashMovementsCol) {
-        throw new Error('Falha ao criar coleções locais.');
-      }
+      // APENAS PULL (Baixar dados do Supabase para o app)
+      // O envio (push) agora é feito manualmente no store.tsx
 
-      // ==========================================
-      // SINCRONIZAÇÃO COM SUPABASE (Replication)
-      // ==========================================
-
-      // 1. Produtos
-      // Sincronização de Produtos
       replicateSupabase({
         tableName: 'products',
         client: supabase,
         collection: productsCol,
         replicationIdentifier: 'products-supabase',
         live: true,
-        autoStart: true, // <-- GARANTA QUE ESTÁ TRUE
+        autoStart: true,
         pull: {
-          batchSize: 100, // Aumente o batchSize para baixar mais rápido
+          batchSize: 100,
           modifier: (doc: any) => {
-            if (doc.supplierId === null) delete doc.supplierId;
-            if (doc.storeId === null) delete doc.storeId;
+            if (doc.supplier_id === null) delete doc.supplier_id;
+            if (doc.store_id === null) delete doc.store_id;
             return doc;
           }
-        },
-        push: { batchSize: 100 },
+        }
+        // push removido para não dar erro 400
       });
 
-      // 2. Movimentações de Estoque
       replicateSupabase({
         tableName: 'movements',
         client: supabase,
@@ -75,11 +66,9 @@ export async function getLocalDb() {
         replicationIdentifier: 'movements-supabase',
         live: true,
         autoStart: true,
-        pull: { batchSize: 50 },
-        push: { batchSize: 50 },
+        pull: { batchSize: 50 }
       });
 
-      // 3. Sessões de Caixa
       replicateSupabase({
         tableName: 'cash_registers',
         client: supabase,
@@ -87,11 +76,9 @@ export async function getLocalDb() {
         replicationIdentifier: 'cash_registers-supabase',
         live: true,
         autoStart: true,
-        pull: { batchSize: 20 },
-        push: { batchSize: 20 },
+        pull: { batchSize: 20 }
       });
 
-      // 4. Vendas (PDV)
       replicateSupabase({
         tableName: 'sales',
         client: supabase,
@@ -99,11 +86,9 @@ export async function getLocalDb() {
         replicationIdentifier: 'sales-supabase',
         live: true,
         autoStart: true,
-        pull: { batchSize: 50 },
-        push: { batchSize: 50 },
+        pull: { batchSize: 50 }
       });
 
-      // 5. Movimentações de Caixa (Sangria/Suprimento)
       replicateSupabase({
         tableName: 'cash_movements',
         client: supabase,
@@ -111,12 +96,11 @@ export async function getLocalDb() {
         replicationIdentifier: 'cash_movements-supabase',
         live: true,
         autoStart: true,
-        pull: { batchSize: 50 },
-        push: { batchSize: 50 },
+        pull: { batchSize: 50 }
       });
 
       dbInstance = db;
-      console.log('%c[WYNX] Banco offline pronto (Produtos, Estoque, Caixa e Vendas)!', 'color: #06B6D4; font-weight: bold;');
+      console.log('%c[WYNX] Banco offline pronto (Modo Leitura)!', 'color: #06B6D4; font-weight: bold;');
       return db;
     } catch (error) {
       dbPromise = null;

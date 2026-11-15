@@ -27,6 +27,8 @@ export interface CartItem {
 interface PDVState {
   cart: CartItem[];
   discount: number;
+  isDockHidden: boolean; // <-- ADICIONE AQUI
+  setDockHidden: (hidden: boolean) => void; // <-- ADICIONE AQUI
   addItem: (item: CartItem) => void;
   removeItem: (productId: string) => void;
   updateQuantity: (productId: string, qty: number) => void;
@@ -40,6 +42,8 @@ interface PDVState {
 export const usePDVStore = create<PDVState>((set, get) => ({
   cart: [],
   discount: 0,
+  isDockHidden: false,                                        // <-- ADICIONE ESTA LINHA
+  setDockHidden: (hidden) => set({ isDockHidden: hidden }),   // <-- ADICIONE ESTA LINHA
   addItem: (item: CartItem) => set((state: PDVState) => {
     const existing = state.cart.find(i => i.productId === item.productId);
     if (existing) {
@@ -77,6 +81,8 @@ type Store = {
   logout: () => void
   saveProduct: (input: any) => boolean
   removeProduct: (id: string) => boolean
+  clearAllStock: () => Promise<boolean>; // <-- ADICIONE ESTA LINHA
+   removeAllProducts: () => Promise<boolean>; // <-- ADICIONE AQUI
   move: (input: { productId: string; type: MovementType; qty: number; note: string }) => boolean
   invite: (input: { name: string; email: string; role: Role; password: string }) => Promise<boolean>
   setRole: (userId: string, role: Role) => boolean
@@ -345,6 +351,29 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             }
             return { ...prev, products: [productData as any, ...prev.products] }
           })
+
+          // ENVIO MANUAL PARA O SUPABASE (snake_case)
+          supabase.from('products').upsert([{
+            id: productData.id,
+            company_id: productData.companyId,
+            name: productData.name,
+            sku: productData.sku,
+            category: productData.category,
+            color: productData.color,
+            size: productData.size,
+            barcode: productData.barcode,
+            price: productData.price,
+            cost: productData.cost,
+            qty: productData.qty,
+            min_qty: productData.minQty,
+            notes: productData.notes,
+            supplier_id: productData.supplierId,
+            store_id: productData.storeId,
+            updated_at: productData.updatedAt
+          }]).then(({ error }) => {
+            if (error) console.error('Erro Supabase Produto:', error);
+          });
+
         } catch (err: any) {
           console.error('Erro ao salvar no banco local:', err)
           setError('Erro ao salvar produto offline: ' + err.message)
@@ -361,9 +390,81 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         const doc = await localDb.products.findOne(id).exec()
         if (doc) await doc.remove()
         setState(prev => ({ ...prev, products: prev.products.filter(p => p.id !== id) }))
+        
+        // ENVIO MANUAL PARA O SUPABASE
+        supabase.from('products').delete().eq('id', id).then(({ error }) => {
+          if (error) console.error('Erro Supabase Delete Produto:', error);
+        });
       })()
       return true
     },
+
+    clearAllStock: async () => {
+      const user = currentUser(state);
+      const company = currentCompany(state);
+      if (!user || !company) return false;
+
+      try {
+        // Tenta atualizar em massa direto na tabela (sem RPC)
+        const { error: supaError } = await supabase
+          .from('products')
+          .update({ qty: 0, updated_at: new Date().toISOString() })
+          .eq('company_id', company.id);
+
+        if (supaError) {
+          setError('Erro no Supabase: ' + supaError.message);
+          return false;
+        }
+
+        // Limpa no banco local
+        const localDb = await getLocalDb();
+        const updatedProducts = state.products.map(p => ({ ...p, qty: 0, updatedAt: new Date().toISOString() }));
+        for (const p of updatedProducts) {
+          await localDb.products.upsert(p);
+        }
+
+        setState(prev => ({ ...prev, products: updatedProducts }));
+        setError(null);
+        return true;
+      } catch (err: any) {
+        setError('Erro ao limpar estoque: ' + err.message);
+        return false;
+      }
+    },
+
+    removeAllProducts: async () => {
+      const user = currentUser(state);
+      const company = currentCompany(state);
+      if (!user || !company) return false;
+
+      try {
+        // Chama a RPC que apaga movimentações e produtos
+        const { error: supaError } = await supabase.rpc('delete_all_products', { 
+          p_company_id: company.id 
+        });
+
+        if (supaError) {
+          setError('Erro no Supabase: ' + supaError.message);
+          return false;
+        }
+
+        // Limpa o banco local (RxDB)
+        const localDb = await getLocalDb();
+        const allProducts = await localDb.products.find().exec();
+        for (const doc of allProducts) {
+          await doc.remove();
+        }
+
+        // Limpa o estado do React
+        setState(prev => ({ ...prev, products: [] }));
+        setError(null);
+        return true;
+      } catch (err: any) {
+        setError('Erro ao excluir produtos: ' + err.message);
+        return false;
+      }
+    },
+
 
     move: (input) => {
       const user = currentUser(state)
@@ -411,6 +512,28 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             movements: [movementData as any, ...prev.movements],
             products: prev.products.map(p => p.id === product.id ? { ...p, qty: next } : p)
           }))
+
+          // ENVIO MANUAL PARA O SUPABASE (snake_case)
+          supabase.from('products').update({ qty: next, updated_at: new Date().toISOString() }).eq('id', product.id).then(({ error }) => {
+             if (error) console.error('Erro Supabase Update Estoque:', error);
+          });
+
+          supabase.from('movements').insert([{
+            id: movementData.id,
+            company_id: movementData.companyId,
+            product_id: movementData.productId,
+            product_name: movementData.productName,
+            type: movementData.type,
+            qty: movementData.qty,
+            resulting_qty: movementData.resultingQty,
+            note: movementData.note,
+            user_id: movementData.userId,
+            user_name: movementData.userName,
+            created_at: movementData.createdAt
+          }]).then(({ error }) => {
+             if (error) console.error('Erro Supabase Insert Movimentação:', error);
+          });
+
         } catch (err: any) {
           setError('Erro ao registrar movimentação offline: ' + err.message)
         }
@@ -660,9 +783,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           cashRegisters: [newRegister, ...(prev.cashRegisters || [])]
         }));
 
-        // Falha silenciosa no Supabase para não travar
-        supabase.from('cash_registers').insert([newRegister]).then(({ error }) => {
-          if (error) console.warn('Aviso: Supabase recusou o caixa. O offline-first continua funcionando.', error);
+        supabase.from('cash_registers').insert([{
+          id: newRegister.id,
+          company_id: newRegister.companyId,
+          user_id: newRegister.userId,
+          status: newRegister.status,
+          initial_amount: newRegister.initialAmount,
+          opened_at: newRegister.openedAt,
+          notes: newRegister.notes
+        }]).then(({ error }) => {
+          if (error) console.error('Erro Supabase Caixa:', error);
         });
         
         return true;
@@ -698,7 +828,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           cashMovements: [movement, ...(prev.cashMovements || [])]
         }));
 
-        supabase.from('cash_movements').insert([movement]).then(({ error }) => {
+        // CORRIGIDO AQUI: Enviando snake_case para o Supabase
+        supabase.from('cash_movements').insert([{
+          id: movement.id,
+          cash_register_id: movement.cashRegisterId,
+          company_id: movement.companyId,
+          type: movement.type,
+          amount: movement.amount,
+          description: movement.description,
+          user_id: movement.userId,
+          created_at: movement.createdAt
+        }]).then(({ error }) => {
           if (error) console.warn('Aviso: Supabase recusou a movimentação.', error);
         });
         return true;
@@ -765,10 +905,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
         for (const p of updatedProducts) {
            const original = state.products.find(op => op.id === p.id);
-           if (original && original.qty !== p.qty) {
-               await localDb.products.upsert(p);
-           }
+           if (original && original.qty !== p.qty) await localDb.products.upsert(p);
         }
+        
         for (const m of newMovements) {
            await localDb.movements.insert(m);
         }
@@ -780,17 +919,45 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           movements: [...newMovements, ...prev.movements]
         }));
 
-        supabase.rpc('finalize_sale', {
-          p_cash_register_id: currentCash.id,
-          p_customer_name: saleData.customerName || null,
-          p_total: saleData.total,
-          p_subtotal: saleData.subtotal,
-          p_discount: saleData.discount,
-          p_items: JSON.stringify(saleData.items),
-          p_payments: JSON.stringify(saleData.payments)
-        }).then(({ error }) => {
-          if (error) console.warn('Aviso: Supabase recusou a venda, mas o offline-first já salvou.', error);
+        // 1. Envia a VENDA para o Supabase (snake_case)
+        supabase.from('sales').insert([{
+          id: newSale.id,
+          company_id: newSale.companyId,
+          cash_register_id: newSale.cashRegisterId,
+          user_id: newSale.userId,
+          user_name: newSale.userName,
+          customer_name: newSale.customerName,
+          status: newSale.status,
+          subtotal: newSale.subtotal,
+          discount: newSale.discount,
+          total: newSale.total,
+          items: newSale.items,
+          payments: newSale.payments,
+          created_at: newSale.createdAt
+        }]).then(({ error }) => {
+          if (error) console.error('Erro Supabase Venda:', error);
         });
+
+        // 2. Envia as MOVIMENTAÇÕES de estoque para o Supabase (snake_case)
+        if (newMovements.length > 0) {
+          supabase.from('movements').insert(
+            newMovements.map(m => ({
+              id: m.id,
+              company_id: m.companyId,
+              product_id: m.productId,
+              product_name: m.productName,
+              type: m.type,
+              qty: m.qty,
+              resulting_qty: m.resultingQty,
+              note: m.note,
+              user_id: m.userId,
+              user_name: m.userName,
+              created_at: m.createdAt
+            }))
+          ).then(({ error }) => {
+            if (error) console.error('Erro Supabase Movimentações:', error);
+          });
+        }
 
         return saleId;
       } catch (err: any) {
@@ -889,8 +1056,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           cashRegisters: (prev.cashRegisters || []).map((c: CashRegister) => c.id === currentCash.id ? updatedRegister : c)
         }));
 
-        supabase.from('cash_registers').update(updatedRegister).eq('id', currentCash.id).then(({ error }) => {
-          if (error) console.warn('Aviso: Supabase recusou o fechamento, mas o local já registrou.', error);
+        // CORRIGIDO AQUI: Enviando snake_case no update
+        supabase.from('cash_registers').update({
+          status: 'closed',
+          closed_at: updatedRegister.closedAt,
+          final_amount: updatedRegister.finalAmount,
+          expected_amount: updatedRegister.expectedAmount,
+          discrepancy: updatedRegister.discrepancy,
+          notes: updatedRegister.notes
+        }).eq('id', currentCash.id).then(({ error }) => {
+          if (error) console.warn('Aviso: Supabase recusou o fechamento.', error);
         });
         return true;
       } catch (err: any) {
@@ -955,8 +1130,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           movements: [...newMovements, ...prev.movements]
         }));
 
-        supabase.from('sales').update(updatedSale).eq('id', saleId).then(({ error }) => {
-          if (error) console.warn('Aviso: Supabase recusou o cancelamento, mas o local já registrou.', error);
+        // CORRIGIDO AQUI: Enviando snake_case no cancelamento
+        supabase.from('sales').update({
+          status: 'cancelled',
+          cancelled_at: updatedSale.cancelledAt,
+          cancel_reason: updatedSale.cancelReason
+        }).eq('id', saleId).then(({ error }) => {
+          if (error) console.warn('Aviso: Supabase recusou o cancelamento.', error);
         });
         return true;
       } catch (err: any) {
