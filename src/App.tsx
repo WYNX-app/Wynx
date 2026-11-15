@@ -42,9 +42,13 @@ const DOCK_ITEMS = [
 
 export default function App() {
   const { ready, state } = useStore()
+
   const isResetPasswordRoute = window.location.pathname === '/reset-password'
 
+  // Removemos o setTimeout e o estado do splash.
+  // Agora o Splash só aparece enquanto o banco local (RxDB) está carregando.
   if (!ready) return <Splash />
+  
   if (isResetPasswordRoute) return <ResetPassword />
   if (!state.sessionUserId) return <Auth />
   
