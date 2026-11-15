@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState, useRef } from 'react'
+import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { supabase } from './lib/supabase/client'
 import { signIn, signUp, signOut, resetPassword as sbResetPassword } from './lib/supabase/auth'
 import * as db from './lib/supabase/data'
@@ -27,8 +27,8 @@ export interface CartItem {
 interface PDVState {
   cart: CartItem[];
   discount: number;
-  isDockHidden: boolean; // <-- ADICIONE AQUI
-  setDockHidden: (hidden: boolean) => void; // <-- ADICIONE AQUI
+  isDockHidden: boolean;
+  setDockHidden: (hidden: boolean) => void;
   addItem: (item: CartItem) => void;
   removeItem: (productId: string) => void;
   updateQuantity: (productId: string, qty: number) => void;
@@ -42,8 +42,8 @@ interface PDVState {
 export const usePDVStore = create<PDVState>((set, get) => ({
   cart: [],
   discount: 0,
-  isDockHidden: false,                                        // <-- ADICIONE ESTA LINHA
-  setDockHidden: (hidden) => set({ isDockHidden: hidden }),   // <-- ADICIONE ESTA LINHA
+  isDockHidden: false,
+  setDockHidden: (hidden) => set({ isDockHidden: hidden }),
   addItem: (item: CartItem) => set((state: PDVState) => {
     const existing = state.cart.find(i => i.productId === item.productId);
     if (existing) {
@@ -81,8 +81,8 @@ type Store = {
   logout: () => void
   saveProduct: (input: any) => boolean
   removeProduct: (id: string) => boolean
-  clearAllStock: () => Promise<boolean>; // <-- ADICIONE ESTA LINHA
-   removeAllProducts: () => Promise<boolean>; // <-- ADICIONE AQUI
+  clearAllStock: () => Promise<boolean>;
+  removeAllProducts: () => Promise<boolean>;
   move: (input: { productId: string; type: MovementType; qty: number; note: string }) => boolean
   invite: (input: { name: string; email: string; role: Role; password: string }) => Promise<boolean>
   setRole: (userId: string, role: Role) => boolean
@@ -144,7 +144,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       if (cancelled) return
       
       if (session?.user) {
-        // 1. Dispara a busca do Supabase e do Banco Local AO MESMO TEMPO
         const [result, localData] = await Promise.all([
           db.loadCompanyState(session.user.id),
           (async () => {
@@ -177,8 +176,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           const remoteCash = result.state.cashRegisters || []
           const remoteSales = result.state.sales || []
 
-          // 2. MERGE INTELIGENTE: Se o local tiver mais dados, usa ele. 
-          // Se o local estiver vazio ou tiver menos que o Supabase, usa o Supabase.
           const finalProducts = localData.products.length >= remoteProducts.length 
             ? localData.products 
             : remoteProducts;
@@ -187,7 +184,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             ? localData.movements 
             : remoteMovements;
 
-          // Para caixa, o local tem prioridade para não fechar sozinho
           const finalCash = localData.cashRegisters.length > 0 
             ? localData.cashRegisters 
             : remoteCash;
@@ -221,7 +217,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               const hasOpenCashLocal = prev.cashRegisters?.some(c => c.status === 'open');
               const hasOpenCashRemote = remoteState.cashRegisters?.some(c => c.status === 'open');
               
-              // 3. PROTEÇÃO: Se o Supabase retornar vazio, mantém o que está na tela
               return {
                 ...prev, 
                 ...remoteState, 
@@ -352,7 +347,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             return { ...prev, products: [productData as any, ...prev.products] }
           })
 
-          // ENVIO MANUAL PARA O SUPABASE (snake_case)
           supabase.from('products').upsert([{
             id: productData.id,
             company_id: productData.companyId,
@@ -391,7 +385,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         if (doc) await doc.remove()
         setState(prev => ({ ...prev, products: prev.products.filter(p => p.id !== id) }))
         
-        // ENVIO MANUAL PARA O SUPABASE
         supabase.from('products').delete().eq('id', id).then(({ error }) => {
           if (error) console.error('Erro Supabase Delete Produto:', error);
         });
@@ -405,7 +398,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       if (!user || !company) return false;
 
       try {
-        // Tenta atualizar em massa direto na tabela (sem RPC)
         const { error: supaError } = await supabase
           .from('products')
           .update({ qty: 0, updated_at: new Date().toISOString() })
@@ -416,7 +408,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           return false;
         }
 
-        // Limpa no banco local
         const localDb = await getLocalDb();
         const updatedProducts = state.products.map(p => ({ ...p, qty: 0, updatedAt: new Date().toISOString() }));
         for (const p of updatedProducts) {
@@ -438,7 +429,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       if (!user || !company) return false;
 
       try {
-        // Chama a RPC que apaga movimentações e produtos
         const { error: supaError } = await supabase.rpc('delete_all_products', { 
           p_company_id: company.id 
         });
@@ -448,14 +438,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           return false;
         }
 
-        // Limpa o banco local (RxDB)
         const localDb = await getLocalDb();
         const allProducts = await localDb.products.find().exec();
         for (const doc of allProducts) {
           await doc.remove();
         }
 
-        // Limpa o estado do React
         setState(prev => ({ ...prev, products: [] }));
         setError(null);
         return true;
@@ -464,7 +452,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         return false;
       }
     },
-
 
     move: (input) => {
       const user = currentUser(state)
@@ -513,7 +500,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             products: prev.products.map(p => p.id === product.id ? { ...p, qty: next } : p)
           }))
 
-          // ENVIO MANUAL PARA O SUPABASE (snake_case)
           supabase.from('products').update({ qty: next, updated_at: new Date().toISOString() }).eq('id', product.id).then(({ error }) => {
              if (error) console.error('Erro Supabase Update Estoque:', error);
           });
@@ -752,7 +738,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     },
 
     // ==========================================
-    // MÓDULO DE VENDAS E CAIXA (COM PROTEÇÃO)
+    // MÓDULO DE VENDAS E CAIXA
     // ==========================================
     
     currentCashRegister: state.cashRegisters?.find((c: CashRegister) => c.status === 'open') || null,
@@ -828,7 +814,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           cashMovements: [movement, ...(prev.cashMovements || [])]
         }));
 
-        // CORRIGIDO AQUI: Enviando snake_case para o Supabase
         supabase.from('cash_movements').insert([{
           id: movement.id,
           cash_register_id: movement.cashRegisterId,
@@ -919,7 +904,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           movements: [...newMovements, ...prev.movements]
         }));
 
-        // 1. Envia a VENDA para o Supabase (snake_case)
         supabase.from('sales').insert([{
           id: newSale.id,
           company_id: newSale.companyId,
@@ -938,7 +922,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           if (error) console.error('Erro Supabase Venda:', error);
         });
 
-        // 2. Envia as MOVIMENTAÇÕES de estoque para o Supabase (snake_case)
         if (newMovements.length > 0) {
           supabase.from('movements').insert(
             newMovements.map(m => ({
@@ -1056,7 +1039,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           cashRegisters: (prev.cashRegisters || []).map((c: CashRegister) => c.id === currentCash.id ? updatedRegister : c)
         }));
 
-        // CORRIGIDO AQUI: Enviando snake_case no update
         supabase.from('cash_registers').update({
           status: 'closed',
           closed_at: updatedRegister.closedAt,
@@ -1130,7 +1112,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           movements: [...newMovements, ...prev.movements]
         }));
 
-        // CORRIGIDO AQUI: Enviando snake_case no cancelamento
         supabase.from('sales').update({
           status: 'cancelled',
           cancelled_at: updatedSale.cancelledAt,

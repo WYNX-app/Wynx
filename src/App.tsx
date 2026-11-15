@@ -1,45 +1,27 @@
 import { ResetPassword } from './components/ResetPassword'
-import { Clock, Truck } from 'lucide-react'
-
-
-
-import { Upload, Download } from 'lucide-react'
+import { Clock, Truck, Upload, Download, X, LayoutDashboard, Package, Layers, History as HistoryIcon, FileText, Users, Settings as SettingsIcon, LogOut, Search, Sparkles, Plus, Minus, Scan, CreditCard, QrCode, CheckCircle2, ShieldCheck, Lock, Crown, Building2, Ban, RefreshCcw, LogIn, Store as StoreIcon, ShoppingCart, Wallet, Edit3, Bell, Trash2 } from 'lucide-react'
 import { PasswordField } from './components/PasswordField'
 import { Scanner } from './components/Scanner'
 import { FormEvent, useEffect, useState, useRef, lazy, Suspense } from 'react'
 import { createPortal } from 'react-dom'
-import { motion, AnimatePresence, useScroll, useMotionValueEvent } from 'framer-motion'
-import { 
-  X, LayoutDashboard, Package, Layers, History as HistoryIcon,
-  FileText, Users, Settings as SettingsIcon, LogOut, Search, Sparkles, Plus, Minus, Scan,
-  CreditCard, QrCode, CheckCircle2, ShieldCheck, Lock, Crown, Building2, Ban, RefreshCcw, LogIn, Store as StoreIcon,
-  ShoppingCart, Wallet, Edit3, Bell, Trash2 // <-- ÍCONES DO PDV E CAIXA
-} from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from './lib/supabase/client'
 import * as db from './lib/supabase/data'
-import {
-  Bar, BarChart, CartesianGrid, Cell, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis
-} from 'recharts'
-import {
-  categoryShare, formatDate, formatMoney, labelMovement, salesByDay, topProducts
-} from './engine'
-// DEPOIS:
+import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { categoryShare, formatDate, formatMoney, labelMovement, salesByDay, topProducts } from './engine'
 import { useSession, useStore, usePDVStore } from './store'
 import { MovementType, PLANS, PageId, PlanId, Product, Role, SEGMENTS } from './types'
 import { Logo } from './ui'
 import Aurora from './components/ui/Aurora'
 import ThemeToggle from './components/ThemeToggle'
-// Importe o GlassIcons da pasta ui
 import GlassIcons from './components/ui/GlassIcons'
-// Adicione esta linha no topo, junto com os outros imports:
 import Particles from './components/ui/Particles' 
 
-// IMPORTAÇÃO DAS NOVAS TELAS
+// IMPORTAÇÃO DAS NOVAS TELAS (LAZY LOADING)
 const PDVScreen = lazy(() => import('./features/sales/PDVScreen').then(m => ({ default: m.PDVScreen })))
 const CashRegister = lazy(() => import('./features/sales/CashRegister').then(m => ({ default: m.CashRegister })))
 const SalesHistory = lazy(() => import('./features/sales/SalesHistory').then(m => ({ default: m.SalesHistory })))
 
-// IMPORTAÇÃO DO REACT BITS
 import SpecularButton from './components/ui/SpecularButton'
 
 const COLORS = ['#1D6FBE', '#06B6D4', '#FFB84D', '#CDA8FF', '#FFABD0', '#1A3A6B']
@@ -60,13 +42,9 @@ const DOCK_ITEMS = [
 
 export default function App() {
   const { ready, state } = useStore()
-
   const isResetPasswordRoute = window.location.pathname === '/reset-password'
 
-  // Removemos o setTimeout e o estado do splash.
-  // Agora o Splash só aparece enquanto o banco local (RxDB) está carregando.
   if (!ready) return <Splash />
-  
   if (isResetPasswordRoute) return <ResetPassword />
   if (!state.sessionUserId) return <Auth />
   
@@ -163,27 +141,11 @@ function Auth() {
 
   return (
     <div className="flex min-h-[100dvh] w-full items-center justify-center bg-[#0A0514] p-4 sm:p-6 relative overflow-hidden">
-      
-      {/* Partículas de fundo */}
       <div className="absolute inset-0 pointer-events-none z-0">
-        <Particles
-          particleColors={['#06B6D4', '#C4B5FD', '#F9A8D4']}
-          particleCount={150}
-          particleSpread={12}
-          speed={0.08}
-          particleBaseSize={80}
-          glow={0.6}
-          twinkle={0.5}
-          moveParticlesOnHover
-          hoverEffect="parallax"
-        />
+        <Particles particleColors={['#06B6D4', '#C4B5FD', '#F9A8D4']} particleCount={150} particleSpread={12} speed={0.08} particleBaseSize={80} glow={0.6} twinkle={0.5} moveParticlesOnHover hoverEffect="parallax" />
       </div>
       
-      {/* Card forçado no modo escuro premium */}
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-        className="relative z-10 w-full max-w-md rounded-3xl border border-white/10 bg-[#16142E]/80 p-6 sm:p-8 shadow-2xl backdrop-blur-2xl"
-      >
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="relative z-10 w-full max-w-md rounded-3xl border border-white/10 bg-[#16142E]/80 p-6 sm:p-8 shadow-2xl backdrop-blur-2xl">
         <div className="mb-8 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Logo className="h-10 w-10 text-white" /> 
@@ -276,19 +238,43 @@ function Shell() {
   
   const unread = notifications.filter((n) => !n.read).length
 
-  // --- CONTROLE DE SCROLL NATIVO (FRAMER MOTION) ---
-  const mainRef = useRef<HTMLElement>(null)
-  const { scrollY } = useScroll({ container: mainRef })
+  // --- CONTROLE DE SCROLL BLINDADO (NATIVO) ---
   const [isDockScrolled, setIsDockScrolled] = useState(false)
+  const mainRef = useRef<HTMLElement>(null)
 
-  useMotionValueEvent(scrollY, "change", (latest) => {
-    const previous = scrollY.getPrevious() || 0;
-    if (latest > previous && latest > 20) {
-      setIsDockScrolled(true);
-    } else if (latest < previous) {
-      setIsDockScrolled(false);
-    }
-  });
+  useEffect(() => {
+    const mainEl = mainRef.current;
+    if (!mainEl) return;
+
+    let lastScrollY = mainEl.scrollTop;
+
+    const handleScroll = () => {
+      const currentScrollY = mainEl.scrollTop;
+      if (currentScrollY > lastScrollY && currentScrollY > 30) {
+        setIsDockScrolled(true);
+      } else if (currentScrollY < lastScrollY) {
+        setIsDockScrolled(false);
+      }
+      lastScrollY = currentScrollY;
+    };
+
+    const handleWheel = (e: WheelEvent) => {
+      if (mainEl.scrollHeight <= mainEl.clientHeight) return;
+      if (e.deltaY > 10) {
+        setIsDockScrolled(true);
+      } else if (e.deltaY < -10) {
+        setIsDockScrolled(false);
+      }
+    };
+
+    mainEl.addEventListener('scroll', handleScroll, { passive: true });
+    window.addEventListener('wheel', handleWheel, { passive: true });
+
+    return () => {
+      mainEl.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('wheel', handleWheel);
+    };
+  }, []);
 
   useEffect(() => {
     if (!localStorage.getItem('wynx_onboarding_done')) {
@@ -327,7 +313,6 @@ function Shell() {
     dark:shadow-[0_8px_32px_rgba(0,0,0,0.5),inset_0_1px_1px_rgba(255,255,255,0.1)]
   `
 
-  // COMPONENTE DE CARREGAMENTO (Fica visível por milissegundos enquanto a tela é baixada)
   const PageLoader = () => (
     <div className="flex h-[60vh] w-full flex-col items-center justify-center text-brand-pink">
       <div className="h-10 w-10 animate-spin rounded-full border-4 border-solid border-brand-pink border-t-transparent"></div>
@@ -356,7 +341,6 @@ function Shell() {
       </div>
 
       <header className={`fixed inset-x-0 z-40 flex items-center justify-between px-4 sm:px-6 py-4 sm:py-6 pointer-events-none transition-all duration-300 ${isImpersonating ? 'top-10' : 'top-0'}`}>
-        
         <div 
           className={`flex items-center gap-3 pointer-events-auto cursor-pointer px-4 py-2 rounded-2xl transition-transform hover:scale-[1.02] ${glassClasses}`}
           onClick={() => setPage(isSuperAdminNoCompany ? 'super-admin' as any : 'dashboard')}
@@ -410,7 +394,6 @@ function Shell() {
         ref={mainRef}
         className={`relative z-10 mx-auto max-w-7xl px-4 pb-40 sm:px-6 h-screen overflow-y-auto overflow-x-hidden [&::-webkit-scrollbar]:hidden transition-all duration-300 ${isImpersonating ? 'pt-40 sm:pt-44' : 'pt-32 sm:pt-36'}`}
       >
-        {/* SUSPENSE AQUI: Enquanto a tela não é baixada, mostra o PageLoader */}
         <Suspense fallback={<PageLoader />}>
           <AnimatePresence mode="wait">
             <motion.div key={page} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.3 }} className="w-full h-full">
@@ -482,12 +465,7 @@ function Shell() {
         )}
       </AnimatePresence>
 
-      {showTour && (
-        <TourGuide 
-          onClose={() => setShowTour(false)} 
-          onStepChange={setTourStep} 
-        />
-      )}
+      {showTour && <TourGuide onClose={() => setShowTour(false)} onStepChange={setTourStep} />}
     </div>
   )
 }
@@ -502,7 +480,6 @@ function Dashboard({ q, go }: { q: string; go: (p: PageId) => void }) {
   const pie = categoryShare(state)
   const item = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0, transition: { type: "spring" as const, stiffness: 300, damping: 24 } } }
 
-  // Configuração dos Ícones de Acesso Rápido
   const quickActions = [
     { id: 'pdv', label: 'Frente de Caixa', icon: <ShoppingCart size={24} />, color: 'pink' },
     { id: 'caixa', label: 'Caixa', icon: <Wallet size={24} />, color: 'blue' },
@@ -514,13 +491,11 @@ function Dashboard({ q, go }: { q: string; go: (p: PageId) => void }) {
 
   return (
     <motion.div initial="hidden" animate="show" variants={{ show: { transition: { staggerChildren: 0.1 } } }} className="space-y-4 sm:space-y-6">
-      
       <div className="flex flex-col gap-1">
         <h1 className="text-2xl sm:text-3xl font-display font-bold">A máquina tá <span className="text-brand-pink">a todo vapor.</span></h1>
         <p className="text-sm text-text-muted dark:text-white/50">Telemetria do seu negócio hoje.</p>
       </div>
 
-      {/* KPIs */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <motion.div id="tour-kpi" variants={item} className="md:col-span-2 relative overflow-hidden rounded-3xl border border-border-subtle dark:border-white/10 bg-bg-surface/50 dark:bg-white/5 p-5 sm:p-6 backdrop-blur-md transition-colors">
           <div className="absolute top-0 right-0 p-6 opacity-5 dark:opacity-10"><Package className="h-32 w-32" /></div>
@@ -565,43 +540,16 @@ function Dashboard({ q, go }: { q: string; go: (p: PageId) => void }) {
         </motion.div>
       </div>
 
-      {/* NOVA SESSÃO: GLASS ICONS PARA ACESSO RÁPIDO */}
       <motion.div variants={item} className="py-6 relative flex flex-col items-center justify-center border-t border-border-subtle dark:border-white/10 mt-6">
         <h2 className="text-xl font-display font-bold mb-8 text-text-primary dark:text-white">Acesso Rápido</h2>
-        
         <div className="w-full max-w-4xl flex justify-center">
           <GlassIcons
-            items={quickActions.map(action => ({
-              id: action.id,
-              label: action.label,
-              icon: action.icon,
-              color: action.color,
-              onClick: () => go(action.id as PageId)
-            }))}
-            size={72}           // Tamanho do ícone
-            gap={40}            // Espaçamento
-            columns={6}         // 6 colunas no desktop
-            roundness={0.5}     // Formato do vidro
-            refraction={0.9}    // Força da distorção
-            bevel={0.6}         
-            frost={0.15}        // Desfoque
-            shine={1}           // Brilho da borda
-            tint="#F9A8D4"      // Tinta Rosa da WYNX
-            tintOpacity={0.1}   // Transparência da tinta
-            iconColor="#ffffff" // Cor do ícone
-            plate="tilt"        // Fundo inclinado atrás do vidro
-            tilt={15}           // Inclinação do fundo
-            spread={0.6}        
-            hover="lift"        // Efeito ao passar o mouse (levanta)
-            parallax={1}        // Efeito de mover com o mouse
-            labels="hover"      // Mostra o texto apenas no hover
-            intro               // Animação de entrada
-            theme="dark"
+            items={quickActions.map(action => ({ id: action.id, label: action.label, icon: action.icon, color: action.color, onClick: () => go(action.id as PageId) }))}
+            size={72} gap={40} columns={6} roundness={0.5} refraction={0.9} bevel={0.6} frost={0.15} shine={1} tint="#F9A8D4" tintOpacity={0.1} iconColor="#ffffff" plate="tilt" tilt={15} spread={0.6} hover="lift" parallax={1} labels="hover" intro theme="dark"
           />
         </div>
       </motion.div>
 
-      {/* CARD DA IA */}
       <motion.div variants={item} className="rounded-3xl border border-brand-violet/30 bg-brand-violet/10 p-5 sm:p-6 backdrop-blur-md flex items-center justify-between group cursor-pointer" onClick={() => go('insights')}>
         <div className="flex items-center gap-3 sm:gap-4">
           <div className="flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-2xl bg-brand-violet/20"><Sparkles className="h-5 w-5 sm:h-6 sm:w-6 text-brand-violet" /></div>
@@ -951,6 +899,7 @@ function ProductForm({ product, categories, onClose, onSave }: { product: Produc
     </SpatialModal>
   )
 }
+
 /* ============================================================
    ESTOQUE
    ============================================================ */
@@ -1630,13 +1579,11 @@ function TourGuide({ onClose, onStepChange }: { onClose: () => void; onStepChang
 
 function Settings() {
   const { company, categories } = useSession()
-  // Adicionamos o 'error' para conseguirmos mostrar a mensagem do Supabase na tela
   const { setCompany, newCategory, clearAllStock, removeAllProducts, error } = useStore()
   
   const [form, setForm] = useState({ name: company?.name || '', segment: company?.segment || SEGMENTS[0], city: company?.city || '', state: company?.state || '' })
   const [cat, setCat] = useState('')
 
-  // ESTADOS PARA A ZONA DE PERIGO
   const [dangerModal, setDangerModal] = useState<'clear' | 'remove' | null>(null)
   const [confirmText, setConfirmText] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
@@ -1659,7 +1606,6 @@ function Settings() {
     if (success) {
       setDangerModal(null)
       setConfirmText('')
-      // Recarrega para o RxDB sincronizar com o Supabase vazio
       window.location.reload() 
     }
   }
@@ -1671,7 +1617,6 @@ function Settings() {
         <p className="text-sm text-text-muted dark:text-white/50">Configurações do sistema.</p>
       </div>
 
-      {/* MENSAGEM DE ERRO VISÍVEL (Caso o Supabase bloqueie) */}
       {error && (
         <div className="rounded-xl border border-danger/30 bg-danger/10 p-4 text-sm text-danger shadow-lg">
           <p className="font-bold">Atenção:</p>
@@ -1680,7 +1625,6 @@ function Settings() {
       )}
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-        {/* FORMULÁRIO DA EMPRESA */}
         <form className="rounded-3xl border border-border-subtle dark:border-white/10 bg-bg-surface/50 dark:bg-[#16142E] p-6 space-y-4 shadow-xl" onSubmit={(e) => { e.preventDefault(); setCompany(form) }}>
           <h3 className="text-lg font-bold mb-2 flex items-center gap-2"><Building2 className="h-5 w-5 text-brand-violet" /> Empresa</h3>
           <div className="flex flex-col gap-1.5"><label className="text-sm font-medium text-text-muted dark:text-white/50">Nome Fantasia</label><input className="w-full rounded-xl border border-border-subtle dark:border-white/10 bg-black/5 dark:bg-black/20 p-3 outline-none focus:border-brand-violet text-text-primary dark:text-white" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
@@ -1692,7 +1636,6 @@ function Settings() {
           <button className="w-full rounded-xl bg-brand-gradient py-3 font-bold text-white mt-4 hover:scale-[1.02] transition shadow-lg">Salvar Empresa</button>
         </form>
 
-        {/* CATEGORIAS */}
         <div className="rounded-3xl border border-border-subtle dark:border-white/10 bg-bg-surface/50 dark:bg-[#16142E] p-6 space-y-4 shadow-xl">
           <h3 className="text-lg font-bold mb-2 flex items-center gap-2"><Layers className="h-5 w-5 text-brand-cyan" /> Categorias</h3>
           <div className="flex flex-wrap gap-2 mb-4">
@@ -1705,7 +1648,6 @@ function Settings() {
           </div>
         </div>
 
-        {/* AJUDA E TOUR */}
         <div className="md:col-span-2 rounded-3xl border border-brand-pink/30 bg-brand-pink/5 p-6 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl">
           <div className="flex items-center gap-4">
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-brand-pink/20 text-brand-pink"><Sparkles className="h-6 w-6" /></div>
@@ -1717,7 +1659,6 @@ function Settings() {
           <button onClick={() => { localStorage.removeItem('wynx_onboarding_done'); window.location.reload(); }} className="w-full sm:w-auto shrink-0 rounded-xl bg-brand-gradient px-6 py-3 font-bold text-white transition hover:scale-[1.02] shadow-lg flex items-center justify-center gap-2"><RefreshCcw className="h-4 w-4" /> Reiniciar Tour</button>
         </div>
 
-        {/* ZONA DE PERIGO */}
         <div className="md:col-span-2 rounded-3xl border border-danger/30 bg-danger/5 p-6 space-y-6 shadow-xl">
           <div>
             <h3 className="text-lg font-bold text-danger flex items-center gap-2"><Ban className="h-5 w-5" /> Zona de Perigo</h3>
@@ -1741,7 +1682,6 @@ function Settings() {
         </div>
       </div>
 
-      {/* MODAL DE CONFIRMAÇÃO DA ZONA DE PERIGO */}
       <AnimatePresence>
         {dangerModal && (
           <SpatialModal 
@@ -1792,9 +1732,8 @@ function ClientBillingModal({ plan, onClose }: { plan: any, onClose: () => void 
   const [step, setStep] = useState<'day' | 'pix' | 'sent'>('day')
   const [billingDay, setBillingDay] = useState(10)
   const [pixData, setPixData] = useState({ key: '', name: '', instructions: '' })
-  const { state } = useStore() // Para pegar a company
+  const { state } = useStore()
   
-  // Busca os dados reais do Pix no banco
   useEffect(() => {
     supabase.from('admin_settings').select('*').eq('id', 1).single().then(({ data }) => {
       if (data) setPixData({ key: data.pix_key, name: data.pix_receiver_name, instructions: data.pix_instructions })
@@ -1802,7 +1741,6 @@ function ClientBillingModal({ plan, onClose }: { plan: any, onClose: () => void 
   }, [])
 
   const handleCreateSubscription = async () => {
-    // Aqui chama a RPC create_subscription do Supabase
     const { error } = await supabase.rpc('create_subscription', {
       p_plan_id: plan.id,
       p_billing_day: billingDay,
@@ -2138,19 +2076,17 @@ const handleChangePlan = async () => {
 }
 
 const getEnumPlan = (plan: any) => {
-  // 1. Tenta pelo ID (se for exatamente um dos valores válidos)
   const validEnums = ['gratuito', 'basico', 'essencial', 'profissional', 'empresarial'];
   if (validEnums.includes(plan.id)) return plan.id;
   if (validEnums.includes(plan.slug)) return plan.slug;
 
-  // 2. Fallback: Traduz pelo preço (que é infalível)
   const price = plan.price_cents / 100;
   if (price >= 89 && price <= 90) return 'basico';
   if (price >= 148 && price <= 150) return 'essencial';
-  if (price >= 498 && price <= 500) return 'profissional'; // Aqui resolve o 'business' -> 'profissional'
+  if (price >= 498 && price <= 500) return 'profissional';
   if (price >= 1290 && price <= 1300) return 'empresarial';
   
-  return 'gratuito'; // Segurança
+  return 'gratuito';
 };
 
 function PixCheckoutModal({ plan, onClose }: { plan: any, onClose: () => void }) {
@@ -2177,7 +2113,6 @@ const handlePaymentDone = async () => {
   setIsSubmitting(true);
 
   try {
-    // Usa a mesma lógica para evitar salvar UUIDs ou slugs errados
     const price = plan.price_cents / 100;
     let enumPlan = 'gratuito';
     if (price >= 89 && price <= 90) enumPlan = 'basico';
@@ -2187,7 +2122,7 @@ const handlePaymentDone = async () => {
 
     const { error } = await supabase.from('payments').insert([{
       company_id: companyId,
-      plan_id: enumPlan, // Salva 'profissional' (que o banco aceita)
+      plan_id: enumPlan,
       amount: plan.price_cents / 100,
       status: 'waiting_proof',
       billing_day: billingDay
@@ -2273,8 +2208,6 @@ function Billing() {
 
   const handleUpgrade = async (planId: string) => {
     setLoadingPlan(planId)
-    
-    // Simula 1 segundo de processamento no banco após o usuário clicar em "Já paguei"
     setTimeout(async () => {
       const success = await changePlan(planId)
       setLoadingPlan(null)
@@ -2299,8 +2232,6 @@ function Billing() {
       </div>
 
       <div className="grid gap-6 md:grid-cols-3">
-        
-        {/* CARD: Status Atual e Consumo */}
         <div className="md:col-span-1 rounded-3xl border border-border-subtle dark:border-white/10 bg-bg-surface/80 dark:bg-[#16142E]/80 p-6 shadow-xl backdrop-blur-xl h-fit">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-bold text-lg">Seu Plano</h3>
@@ -2343,7 +2274,6 @@ function Billing() {
           </div>
         </div>
 
-        {/* GRID DE PLANOS */}
         <div className="md:col-span-2 grid gap-4 sm:grid-cols-2">
           {plans.map(p => {
             const isCurrent = p.id === currentPlan?.id
@@ -2388,7 +2318,6 @@ function Billing() {
         </div>
       </div>
 
-      {/* MODAL DE CHECKOUT PIX */}
       {showCheckout && selectedPlan && (
 <PixCheckoutModal 
   plan={{
