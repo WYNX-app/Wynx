@@ -45,8 +45,7 @@ export default function App() {
 
   const isResetPasswordRoute = window.location.pathname === '/reset-password'
 
-  // Removemos o setTimeout e o estado do splash.
-  // Agora o Splash só aparece enquanto o banco local (RxDB) está carregando.
+  // O Splash agora dura apenas o tempo de carregar o banco local (RxDB)
   if (!ready) return <Splash />
   
   if (isResetPasswordRoute) return <ResetPassword />
@@ -145,7 +144,7 @@ function Auth() {
 
   return (
     <div className="flex min-h-[100dvh] w-full items-center justify-center bg-[#0A0514] p-4 sm:p-6 relative overflow-hidden">
-      <div className="absolute inset-0 pointer-events-none z-0">
+      <div className="absolute inset-0 pointer-events-none z-0 ">
         <Particles particleColors={['#06B6D4', '#C4B5FD', '#F9A8D4']} particleCount={150} particleSpread={12} speed={0.08} particleBaseSize={80} glow={0.6} twinkle={0.5} moveParticlesOnHover hoverEffect="parallax" />
       </div>
       
