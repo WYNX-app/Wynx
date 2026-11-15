@@ -6,7 +6,7 @@ import Papa from 'papaparse'
 import { Upload, Download } from 'lucide-react'
 import { PasswordField } from './components/PasswordField'
 import { Scanner } from './components/Scanner'
-import { FormEvent, useEffect, useRef, useState } from 'react'
+import { FormEvent, useEffect, useState, useRef, lazy, Suspense } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence, useScroll, useMotionValueEvent } from 'framer-motion'
 import { 
@@ -35,9 +35,9 @@ import GlassIcons from './components/ui/GlassIcons'
 import Particles from './components/ui/Particles' 
 
 // IMPORTAÇÃO DAS NOVAS TELAS
-import { PDVScreen } from './features/sales/PDVScreen'
-import { CashRegister } from './features/sales/CashRegister'
-import { SalesHistory } from './features/sales/SalesHistory'
+const PDVScreen = lazy(() => import('./features/sales/PDVScreen').then(m => ({ default: m.PDVScreen })))
+const CashRegister = lazy(() => import('./features/sales/CashRegister').then(m => ({ default: m.CashRegister })))
+const SalesHistory = lazy(() => import('./features/sales/SalesHistory').then(m => ({ default: m.SalesHistory })))
 
 // IMPORTAÇÃO DO REACT BITS
 import SpecularButton from './components/ui/SpecularButton'
@@ -284,12 +284,9 @@ function Shell() {
 
   useMotionValueEvent(scrollY, "change", (latest) => {
     const previous = scrollY.getPrevious() || 0;
-    // Se desceu mais de 20px, esconde
     if (latest > previous && latest > 20) {
       setIsDockScrolled(true);
-    } 
-    // Se subiu qualquer coisa, mostra
-    else if (latest < previous) {
+    } else if (latest < previous) {
       setIsDockScrolled(false);
     }
   });
@@ -330,6 +327,14 @@ function Shell() {
     shadow-[0_8px_32px_rgba(0,0,0,0.08),inset_0_1px_1px_rgba(255,255,255,0.6)] 
     dark:shadow-[0_8px_32px_rgba(0,0,0,0.5),inset_0_1px_1px_rgba(255,255,255,0.1)]
   `
+
+  // COMPONENTE DE CARREGAMENTO (Fica visível por milissegundos enquanto a tela é baixada)
+  const PageLoader = () => (
+    <div className="flex h-[60vh] w-full flex-col items-center justify-center text-brand-pink">
+      <div className="h-10 w-10 animate-spin rounded-full border-4 border-solid border-brand-pink border-t-transparent"></div>
+      <p className="mt-4 font-display font-bold animate-pulse">Carregando tela...</p>
+    </div>
+  )
 
   return (
     <div className="relative min-h-screen bg-bg-base dark:bg-[#0A0514] text-text-primary dark:text-white selection:bg-brand-pink/30 overflow-hidden transition-colors duration-500">
@@ -402,38 +407,40 @@ function Shell() {
         )}
       </AnimatePresence>
 
-      {/* MANTIDO O REF APENAS, O HOOK FAZ O RESTO */}
       <main 
         ref={mainRef}
         className={`relative z-10 mx-auto max-w-7xl px-4 pb-40 sm:px-6 h-screen overflow-y-auto overflow-x-hidden [&::-webkit-scrollbar]:hidden transition-all duration-300 ${isImpersonating ? 'pt-40 sm:pt-44' : 'pt-32 sm:pt-36'}`}
       >
-        <AnimatePresence mode="wait">
-          <motion.div key={page} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.3 }} className="w-full h-full">
-            {isSuperAdminNoCompany ? (
-              <SuperAdmin />
-            ) : (
-              <>
-                {page === 'dashboard' && <Dashboard q={q} go={setPage} />}
-                {page === 'pdv' && <PDVScreen />}
-                {page === 'caixa' && <CashRegister />}
-                {page === 'historico-vendas' && <SalesHistory />}
-                {page === 'produtos' && <Products q={q} />}
-                {page === 'fornecedores' && <Suppliers q={q} />}
-                {page === 'estoque' && <Stock q={q} />}
-                {page === 'relatorios' && <Reports q={q} />}
-                {page === 'historico' && <HistoryTab q={q} />}
-                {page === 'equipe' && <Team q={q} />}
-                {page === 'configuracoes' && <Settings />}
-                {page === 'perfil' && <Profile />}
-                {page === 'assinatura' && <Billing />}
-                {page === 'insights' && <Insights q={q} />}
-                {page === 'alertas' && <Alerts q={q} />}
-                {page === 'lojas' && <Stores q={q} />}
-                {(page as string) === 'super-admin' && <SuperAdmin />}
-              </>
-            )}
-          </motion.div>
-        </AnimatePresence>
+        {/* SUSPENSE AQUI: Enquanto a tela não é baixada, mostra o PageLoader */}
+        <Suspense fallback={<PageLoader />}>
+          <AnimatePresence mode="wait">
+            <motion.div key={page} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.3 }} className="w-full h-full">
+              {isSuperAdminNoCompany ? (
+                <SuperAdmin />
+              ) : (
+                <>
+                  {page === 'dashboard' && <Dashboard q={q} go={setPage} />}
+                  {page === 'pdv' && <PDVScreen />}
+                  {page === 'caixa' && <CashRegister />}
+                  {page === 'historico-vendas' && <SalesHistory />}
+                  {page === 'produtos' && <Products q={q} />}
+                  {page === 'fornecedores' && <Suppliers q={q} />}
+                  {page === 'estoque' && <Stock q={q} />}
+                  {page === 'relatorios' && <Reports q={q} />}
+                  {page === 'historico' && <HistoryTab q={q} />}
+                  {page === 'equipe' && <Team q={q} />}
+                  {page === 'configuracoes' && <Settings />}
+                  {page === 'perfil' && <Profile />}
+                  {page === 'assinatura' && <Billing />}
+                  {page === 'insights' && <Insights q={q} />}
+                  {page === 'alertas' && <Alerts q={q} />}
+                  {page === 'lojas' && <Stores q={q} />}
+                  {(page as string) === 'super-admin' && <SuperAdmin />}
+                </>
+              )}
+            </motion.div>
+          </AnimatePresence>
+        </Suspense>
       </main>
 
       <div className="fixed bottom-4 sm:bottom-6 inset-x-0 z-[999] flex justify-center pointer-events-none px-4">
@@ -441,7 +448,6 @@ function Shell() {
           id="tour-dock"
           initial={{ y: 50, opacity: 0 }} 
           animate={{ 
-            /* AQUI: Checa os dois estados (modal aberto OU scroll para baixo) */
             y: (isDockHidden || isDockScrolled) ? 150 : 0,
             opacity: (isDockHidden || isDockScrolled) ? 0 : 1 
           }} 
