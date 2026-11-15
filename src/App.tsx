@@ -144,11 +144,18 @@ function Auth() {
 
   return (
     <div className="flex min-h-[100dvh] w-full items-center justify-center bg-[#0A0514] p-4 sm:p-6 relative overflow-hidden">
-      <div className="absolute inset-0 pointer-events-none z-0 ">
+      
+      {/* Partículas de fundo - Escondidas no mobile para não travar o LCP */}
+      <div className="absolute inset-0 pointer-events-none z-0 hidden md:block">
         <Particles particleColors={['#06B6D4', '#C4B5FD', '#F9A8D4']} particleCount={150} particleSpread={12} speed={0.08} particleBaseSize={80} glow={0.6} twinkle={0.5} moveParticlesOnHover hoverEffect="parallax" />
       </div>
       
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="relative z-10 w-full max-w-md rounded-3xl border border-white/10 bg-[#16142E]/80 p-6 sm:p-8 shadow-2xl backdrop-blur-2xl">
+      {/* Card de Login - Opacidade inicial removida para o Google medir o LCP na hora */}
+      <motion.div 
+        initial={{ y: 20 }} 
+        animate={{ y: 0 }} 
+        className="relative z-10 w-full max-w-md rounded-3xl border border-white/10 bg-[#16142E]/80 p-6 sm:p-8 shadow-2xl backdrop-blur-2xl"
+      >
         <div className="mb-8 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Logo className="h-10 w-10 text-white" /> 
