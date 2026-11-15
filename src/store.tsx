@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useContext, useEffect, useMemo, useState, useRef } from 'react'
 import { supabase } from './lib/supabase/client'
 import { signIn, signUp, signOut, resetPassword as sbResetPassword } from './lib/supabase/auth'
 import * as db from './lib/supabase/data'

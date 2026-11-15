@@ -1,8 +1,8 @@
 import { ResetPassword } from './components/ResetPassword'
 import { Clock, Truck } from 'lucide-react'
-import ExcelJS from 'exceljs'
-import { saveAs } from 'file-saver'
-import Papa from 'papaparse'
+
+
+
 import { Upload, Download } from 'lucide-react'
 import { PasswordField } from './components/PasswordField'
 import { Scanner } from './components/Scanner'
@@ -114,7 +114,9 @@ function Splash() {
     <div className="relative grid min-h-screen place-items-center overflow-hidden bg-bg-base dark:bg-[#0A0514] px-6">
       <div className="absolute inset-0 opacity-40 dark:opacity-20 pointer-events-none"><Aurora variant="splash" /></div>
       <motion.div 
-        initial={{ opacity: 0, scale: 0.8, filter: 'blur(10px)' }} animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }} transition={{ duration: 1.2 }}
+        initial={{ opacity: 0, scale: 0.9 }} 
+        animate={{ opacity: 1, scale: 1 }} 
+        transition={{ duration: 1.2, ease: "easeOut" }}
         className="relative z-10 text-center"
       >
         <Logo className="mx-auto h-28 w-28 md:h-48 md:w-48 drop-shadow-[0_0_30px_rgba(196,181,253,0.6)]" />
@@ -652,7 +654,10 @@ function Products({ q }: { q: string }) {
   }
 
   const downloadTemplate = async () => {
-    const workbook = new ExcelJS.Workbook()
+    const ExcelJS = (await import('exceljs')).default;
+    const { saveAs } = (await import('file-saver'));
+
+    const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('Modelo WYNX')
     worksheet.addRow(['Nome', 'SKU', 'Categoria', 'Preço', 'Custo', 'Estoque', 'Mínimo', 'Código de Barras'])
     worksheet.addRow(['Ex: Teclado Mecânico', 'TEC-001', 'Periféricos', '199.90', '120.00', '10', '2', '7891234567890'])
@@ -676,6 +681,7 @@ function Products({ q }: { q: string }) {
     try {
       let rawRows: any[][] = []
       if (fileExtension === 'csv') {
+        const Papa = (await import('papaparse')).default;
         Papa.parse(file, {
           header: false, skipEmptyLines: 'greedy',
           complete: async (results) => {
@@ -685,8 +691,11 @@ function Products({ q }: { q: string }) {
         })
       } else if (fileExtension === 'xlsx' || fileExtension === 'xls') {
         if (fileExtension === 'xls') return showToast('error', 'O formato antigo .xls não é suportado. Salve como .xlsx.');
+        
+        const ExcelJS = (await import('exceljs')).default;
         const arrayBuffer = await file.arrayBuffer()
         const workbook = new ExcelJS.Workbook()
+        
         try { await workbook.xlsx.load(arrayBuffer) } 
         catch (excelError) { return showToast('error', 'Não foi possível ler a planilha. O arquivo pode estar corrompido.'); }
         
@@ -768,6 +777,9 @@ function Products({ q }: { q: string }) {
   };
 
   const exportBeautifulExcel = async () => {
+    const ExcelJS = (await import('exceljs')).default;
+    const { saveAs } = (await import('file-saver'));
+
     const workbook = new ExcelJS.Workbook()
     const worksheet = workbook.addWorksheet('Catálogo WYNX', { views: [{ state: 'frozen', ySplit: 10 }] })
     const colorPink = 'FFF9A8D4', colorViolet = 'FFC4B5FD', colorSoftPink = 'FFFCEFF5', colorText = 'FF0A0A0A'
@@ -857,7 +869,6 @@ function Products({ q }: { q: string }) {
         </div>
 
         <div id="tour-csv" className="flex flex-wrap items-center gap-3">
-          {/* TOOLBAR EXPANSÍVEL IOS STYLE (Sem o botão de lixeira) */}
           <div className="flex items-center bg-white/60 dark:bg-[#16142E]/80 border border-white/50 dark:border-white/10 rounded-[20px] p-1.5 backdrop-blur-xl shadow-lg">
             <button onClick={exportBeautifulExcel} className="group flex items-center justify-center p-2.5 rounded-xl hover:bg-white/80 dark:hover:bg-white/10 transition-all text-text-muted dark:text-white/60 overflow-hidden">
               <Upload className="h-4 w-4 shrink-0 group-hover:text-brand-pink transition-colors" />

@@ -17,7 +17,6 @@
     <meta property="og:url" content="https://wynx-pi.vercel.app/" />
     <meta property="og:title" content="WYNX — Gestão Inteligente de Estoque" />
     <meta property="og:description" content="O sistema operacional do seu estoque. Controle produtos, vendas, caixa e equipe de forma simples e offline-first." />
-    <!-- SUBSTITUA O LINK ABAIXO POR UMA IMAGEM SUA (1200x630px) -->
     <meta property="og:image" content="https://wynx-pi.vercel.app/og-image.png" />
 
     <!-- Twitter Card -->
@@ -26,13 +25,14 @@
     <meta name="twitter:description" content="O sistema operacional do seu estoque." />
     <meta name="twitter:image" content="https://wynx-pi.vercel.app/og-image.png" />
 
-    <!-- Google Search Console (COLE O CÓDIGO AQUI DEPOIS) -->
-    <!-- <meta name="google-site-verification" content="SEU_CODIGO_AQUI" /> -->
-
-    <!-- Fontes -->
+    <!-- Fontes Otimizadas (Não bloqueiam a renderização) -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet" />
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700;800&display=swap" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700;800&display=swap" media="print" onload="this.media='all'" />
+    <noscript>
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700;800&display=swap" />
+    </noscript>
   </head>
   <body>
     <div id="root"></div>
