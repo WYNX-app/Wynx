@@ -119,13 +119,18 @@ function Auth() {
   const [form, setForm] = useState({ name: '', email: '', password: '', company: '', segment: SEGMENTS[0], city: '', stateUf: 'PI' })
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
   
-  // ESTADO NOVO: Controla quando as partículas devem aparecer
   const [showParticles, setShowParticles] = useState(false)
 
   useEffect(() => {
-    // Carrega as partículas 800ms depois que a tela de login já apareceu (LCP salvo)
-    const timer = setTimeout(() => setShowParticles(true), 800)
-    return () => clearTimeout(timer)
+    // Só renderiza as partículas quando o navegador estiver 100% ocioso (livre)
+    // Se não suportar requestIdleCallback, usa um timeout seguro de 2.5s
+    if ('requestIdleCallback' in window) {
+      const id = (window as any).requestIdleCallback(() => setShowParticles(true), { timeout: 3000 })
+      return () => (window as any).cancelIdleCallback(id)
+    } else {
+      const timer = setTimeout(() => setShowParticles(true), 2500)
+      return () => clearTimeout(timer)
+    }
   }, [])
 
   const submit = async (e: FormEvent) => {
@@ -154,13 +159,25 @@ function Auth() {
   return (
     <div className="flex min-h-[100dvh] w-full items-center justify-center bg-[#0A0514] p-4 sm:p-6 relative overflow-hidden">
       
-      {/* PARTÍCULAS: Agora só renderizam depois de 800ms (evita travar o LCP) */}
-      <div className="absolute inset-0 pointer-events-none z-0 transition-opacity duration-1000" style={{ opacity: showParticles ? 1 : 0 }}>
-        <Particles particleColors={['#06B6D4', '#C4B5FD', '#F9A8D4']} particleCount={100} particleSpread={12} speed={0.08} particleBaseSize={80} glow={0.6} twinkle={0.5} moveParticlesOnHover hoverEffect="parallax" />
+      {/* PARTÍCULAS: Só monta no DOM se estiver ocioso. O fundo escuro já está lá, então não tem "flash" branco. */}
+      <div className="absolute inset-0 pointer-events-none z-0">
+        {showParticles && (
+          <Particles 
+            particleColors={['#06B6D4', '#C4B5FD', '#F9A8D4']} 
+            particleCount={80} // Reduzi um pouco para aliviar a GPU do celular
+            particleSpread={12} 
+            speed={0.08} 
+            particleBaseSize={80} 
+            glow={0.6} 
+            twinkle={0.5} 
+            moveParticlesOnHover 
+            hoverEffect="parallax" 
+          />
+        )}
       </div>
       
-      {/* CARD DE LOGIN: Removemos a motion.div e o backdrop-blur no mobile para o Google pintar rápido */}
-      <div className="relative z-10 w-full max-w-md rounded-3xl border border-white/10 bg-[#16142E] md:bg-[#16142E]/80 p-6 sm:p-8 shadow-2xl md:backdrop-blur-2xl animate-in fade-in zoom-in-95 duration-500">
+      {/* CARD DE LOGIN: Estático e sem animação para o LCP ser instantâneo */}
+      <div className="relative z-10 w-full max-w-md rounded-3xl border border-white/10 bg-[#16142E] md:bg-[#16142E]/80 p-6 sm:p-8 shadow-2xl md:backdrop-blur-2xl">
         <div className="mb-8 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Logo className="h-10 w-10 text-white" /> 
